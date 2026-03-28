@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF Stamper - Automated Tests</title>
+  <style>
+    body { font-family: monospace; padding: 2rem; background: #1e1e1e; color: #d4d4d4; }
+    .test-section { margin-bottom: 2rem; padding: 1rem; background: #252526; border-radius: 4px; }
+    .test-case { padding: 0.5rem; margin: 0.5rem 0; }
+    .pass { color: #4ec9b0; }
+    .fail { color: #f48771; }
+    .pending { color: #dcdcaa; }
+    h1 { color: #569cd6; }
+    h2 { color: #4ec9b0; margin-top: 1rem; }
+    pre { background: #1e1e1e; padding: 1rem; border-radius: 4px; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>PDF Stamper v1.1.0 - Automated Tests</h1>
+  <div id="test-results"></div>
+
+  <script src="src/utils/validators.js"></script>
+  <script src="src/ui/notifications.js"></script>
+  <script src="src/ui/loading.js"></script>
+
+  <script>
+    const results = document.getElementById('test-results');
+    let passCount = 0;
+    let failCount = 0;
+
+    function log(message, type = 'info') {
+      const div = document.createElement('div');
+      div.className = `test-case ${type}`;
+      div.textContent = message;
+      results.appendChild(div);
+
+      if (type === 'pass') passCount++;
+      if (type === 'fail') failCount++;
+    }
+
+    function section(title) {
+      const div = document.createElement('div');
+      div.className = 'test-section';
+      div.innerHTML = `<h2>${title}</h2>`;
+      results.appendChild(div);
+      return div;
+    }
+
+    function assert(condition, message) {
+      if (condition) {
+        log(`✓ ${message}`, 'pass');
+        return true;
+      } else {
+        log(`✗ ${message}`, 'fail');
+        return false;
+      }
+    }
+
+    // Run tests
+    async function runTests() {
+      // Test 1: Validators Module
+      section('1. Validators Module Tests');
+      assert(typeof window.Validators === 'object', 'Validators module loaded');
+      assert(typeof window.Validators.validatePdfFile === 'function', 'validatePdfFile exists');
+      assert(typeof window.Validators.validateImageFile === 'function', 'validateImageFile exists');
+      assert(typeof window.Validators.validatePageCount === 'function', 'validatePageCount exists');
+      assert(typeof window.Validators.validateImageDimensions === 'function', 'validateImageDimensions exists');
+
+      // Test PDF validation
+      const mockPdfValid = { type: 'application/pdf', size: 1024 * 1024 }; // 1MB
+      const mockPdfTooLarge = { type: 'application/pdf', size: 60 * 1024 * 1024 }; // 60MB
+      const mockPdfInvalidType = { type: 'text/plain', size: 1024 };
+
+      const validResult = window.Validators.validatePdfFile(mockPdfValid);
+      assert(validResult.valid === true, 'Valid PDF passes validation');
+
+      const largeResult = window.Validators.validatePdfFile(mockPdfTooLarge);
+      assert(largeResult.valid === false, 'Oversized PDF fails validation');
+
+      const typeResult = window.Validators.validatePdfFile(mockPdfInvalidType);
+      assert(typeResult.valid === false, 'Invalid PDF type fails validation');
+
+      // Test page count validation
+      const pageResult1 = window.Validators.validatePageCount(100);
+      assert(pageResult1.valid === true, 'Valid page count (100) passes');
+
+      const pageResult2 = window.Validators.validatePageCount(600);
+      assert(pageResult2.valid === false, 'Invalid page count (600) fails');
+
+      // Test 2: Toast Notification Module
+      section('2. Toast Notification Module Tests');
+      assert(typeof window.Toast === 'object', 'Toast module loaded');
+      assert(typeof window.Toast.success === 'function', 'Toast.success exists');
+      assert(typeof window.Toast.error === 'function', 'Toast.error exists');
+      assert(typeof window.Toast.warning === 'function', 'Toast.warning exists');
+      assert(typeof window.Toast.info === 'function', 'Toast.info exists');
+      assert(typeof window.Toast.clear === 'function', 'Toast.clear exists');
+
+      // Test toast creation
+      const toast = window.Toast.info('Test toast', 0);
+      assert(toast !== null, 'Toast created successfully');
+      assert(document.querySelector('.toast') !== null, 'Toast element exists in DOM');
+      window.Toast.clear();
+      await new Promise(resolve => setTimeout(resolve, 400)); // Wait for animation
+      assert(document.querySelector('.toast') === null, 'Toast cleared successfully');
+
+      // Test 3: Loading Module
+      section('3. Loading Indicator Module Tests');
+      assert(typeof window.Loading === 'object', 'Loading module loaded');
+      assert(typeof window.Loading.show === 'function', 'Loading.show exists');
+      assert(typeof window.Loading.hide === 'function', 'Loading.hide exists');
+      assert(typeof window.Loading.updateProgress === 'function', 'Loading.updateProgress exists');
+      assert(typeof window.Loading.showPdfLoading === 'function', 'Loading.showPdfLoading exists');
+      assert(typeof window.Loading.showExportLoading === 'function', 'Loading.showExportLoading exists');
+
+      // Test loading overlay
+      window.Loading.show('Test loading');
+      await new Promise(resolve => setTimeout(resolve, 100));
+      assert(document.querySelector('.loading-overlay') !== null, 'Loading overlay exists in DOM');
+      assert(document.querySelector('.loading-show') !== null, 'Loading overlay is visible');
+      window.Loading.hide();
+      await new Promise(resolve => setTimeout(resolve, 400));
+      assert(document.querySelector('.loading-show') === null, 'Loading overlay hidden');
+
+      // Test progress bar
+      window.Loading.showExportLoading('Test export');
+      await new Promise(resolve => setTimeout(resolve, 100));
+      window.Loading.updateProgress(50, 'Half done');
+      const progressBar = document.querySelector('.loading-progress-bar');
+      assert(progressBar !== null, 'Progress bar exists');
+      assert(progressBar.style.width === '50%', 'Progress bar updated to 50%');
+      window.Loading.hide();
+
+      // Summary
+      section('Test Summary');
+      log(`Total: ${passCount + failCount} tests`, 'info');
+      log(`Passed: ${passCount}`, 'pass');
+      log(`Failed: ${failCount}`, failCount > 0 ? 'fail' : 'pass');
+
+      if (failCount === 0) {
+        log('✓ All automated tests passed!', 'pass');
+      } else {
+        log(`✗ ${failCount} test(s) failed`, 'fail');
+      }
+    }
+
+    // Run tests on load
+    runTests().catch(err => {
+      log(`Test suite error: ${err.message}`, 'fail');
+      console.error(err);
+    });
+  </script>
+</body>
+</html>

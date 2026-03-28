@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Toast Notification Test</title>
+  <link rel="stylesheet" href="src/style.css">
+</head>
+<body>
+  <div style="padding: 2rem;">
+    <h1>Toast Notification Test</h1>
+    <p>Click the buttons below to test different toast types:</p>
+
+    <div style="display: flex; flex-direction: column; gap: 1rem; max-width: 300px; margin-top: 2rem;">
+      <button onclick="testSuccess()" style="padding: 1rem; font-size: 1rem; cursor: pointer;">Test Success Toast</button>
+      <button onclick="testError()" style="padding: 1rem; font-size: 1rem; cursor: pointer;">Test Error Toast</button>
+      <button onclick="testWarning()" style="padding: 1rem; font-size: 1rem; cursor: pointer;">Test Warning Toast</button>
+      <button onclick="testInfo()" style="padding: 1rem; font-size: 1rem; cursor: pointer;">Test Info Toast</button>
+      <button onclick="testMultiple()" style="padding: 1rem; font-size: 1rem; cursor: pointer;">Test Multiple Toasts</button>
+      <button onclick="testLongMessage()" style="padding: 1rem; font-size: 1rem; cursor: pointer;">Test Long Message</button>
+      <button onclick="window.Toast.clear()" style="padding: 1rem; font-size: 1rem; cursor: pointer; background: #dc3545; color: white; border: none;">Clear All Toasts</button>
+    </div>
+  </div>
+
+  <script src="src/ui/notifications.js"></script>
+  <script>
+    function testSuccess() {
+      window.Toast.success('操作成功完成！');
+    }
+
+    function testError() {
+      window.Toast.error('发生错误，请重试。');
+    }
+
+    function testWarning() {
+      window.Toast.warning('请注意：这是一个警告消息。');
+    }
+
+    function testInfo() {
+      window.Toast.info('这是一条信息提示。');
+    }
+
+    function testMultiple() {
+      window.Toast.success('第一条消息');
+      setTimeout(() => window.Toast.info('第二条消息'), 200);
+      setTimeout(() => window.Toast.warning('第三条消息'), 400);
+      setTimeout(() => window.Toast.error('第四条消息'), 600);
+    }
+
+    function testLongMessage() {
+      window.Toast.info('这是一条很长的消息，用来测试 toast 通知在显示长文本时的表现。它应该能够正确地换行并保持良好的可读性。');
+    }
+  </script>
+</body>
+</html>
