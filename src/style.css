@@ -1204,3 +1204,131 @@ input[type=range]::-webkit-slider-runnable-track {
 .canvas-wrapper .canvas-container canvas.lower-canvas {
   cursor: default;
 }
+
+/* ==================== 移动端响应式布局 ==================== */
+
+@media (max-width: 768px) {
+  .app {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    max-height: 200px;
+    border-right: none;
+    border-bottom: 1px solid var(--neutral-200);
+  }
+
+  .sidebar.sidebar-visible {
+    transform: translateX(0);
+  }
+
+  .main-content {
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  .toolbar {
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 8px;
+  }
+
+  .toolbar-group {
+    flex-wrap: wrap;
+  }
+
+  .btn,
+  .toolbar-btn {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 8px;
+    font-size: 14px;
+  }
+
+  .canvas-wrapper {
+    margin: 0;
+    padding: 8px;
+  }
+
+  .thumbnail-container {
+    flex-direction: row;
+    overflow-x: auto;
+    padding: 8px;
+  }
+
+  .thumbnail-item {
+    min-width: 80px;
+    margin: 0 4px;
+  }
+
+  .zoom-control {
+    width: 100%;
+    margin-top: 8px;
+  }
+
+  .page-navigator {
+    width: 100%;
+    order: -1;
+    margin-bottom: 8px;
+  }
+
+  .modal-content {
+    width: 95%;
+    max-width: none;
+    margin: 20px auto;
+  }
+
+  .shortcut-table {
+    font-size: 12px;
+  }
+
+  .shortcut-table th,
+  .shortcut-table td {
+    padding: 2px 4px;
+  }
+
+  .toast-container {
+    top: 10px;
+    right: 10px;
+    left: 10px;
+    max-width: none;
+  }
+
+  .toast {
+    font-size: 14px;
+    padding: 8px 12px;
+  }
+
+  .object-coords {
+    flex-wrap: wrap;
+  }
+
+  .coord-input {
+    width: 50px;
+    font-size: 12px;
+  }
+}
+
+/* ==================== 超小屏幕 (手机) ==================== */
+
+@media (max-width: 480px) {
+  .toolbar-group {
+    width: 100%;
+  }
+
+  .sidebar-toggle-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .btn-icon {
+    width: 36px;
+    height: 36px;
+  }
+
+  .canvas-container canvas {
+    touch-action: none;
+  }
+}
+}
