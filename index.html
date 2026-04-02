@@ -114,6 +114,22 @@
               <div class="button-group">
                 <button class="btn btn-secondary" id="save-seal-btn">保存到印章库</button>
               </div>
+              <!-- 精确坐标定位 -->
+              <div class="coord-controls">
+                <label>X:</label>
+                <input type="number" id="coord-x" class="coord-input" step="1" min="0" placeholder="0">
+                <label>Y:</label>
+                <input type="number" id="coord-y" class="coord-input" step="1" min="0" placeholder="0">
+              </div>
+              <!-- 编辑操作 -->
+              <div class="button-group button-grid-2">
+                <button class="btn btn-secondary" id="copy-stamp-btn" title="复制选中 (Ctrl+C)">复制</button>
+                <button class="btn btn-secondary" id="paste-stamp-btn" title="粘贴 (Ctrl+V)">粘贴</button>
+              </div>
+              <div class="button-group button-grid-2">
+                <button class="btn btn-secondary" id="lock-stamp-btn" title="锁定/解锁 (Ctrl+L)">锁定</button>
+                <button class="btn btn-secondary" id="guideline-toggle-btn" title="切换对齐辅助线">辅助线</button>
+              </div>
             </div>
             <div class="tool-section">
               <h3>签名</h3>
@@ -210,6 +226,21 @@
         <i data-lucide="trash-2"></i>
         <span>删除</span>
         <span class="context-menu-shortcut">Del</span>
+      </div>
+      <div class="context-menu-item" data-action="copy">
+        <i data-lucide="copy"></i>
+        <span>复制</span>
+        <span class="context-menu-shortcut">Ctrl+C</span>
+      </div>
+      <div class="context-menu-item" data-action="paste">
+        <i data-lucide="clipboard"></i>
+        <span>粘贴</span>
+        <span class="context-menu-shortcut">Ctrl+V</span>
+      </div>
+      <div class="context-menu-item" data-action="toggle-lock">
+        <i data-lucide="lock"></i>
+        <span>锁定/解锁</span>
+        <span class="context-menu-shortcut">Ctrl+L</span>
       </div>
       <div class="context-menu-divider"></div>
       <div class="context-menu-item" data-action="undo">

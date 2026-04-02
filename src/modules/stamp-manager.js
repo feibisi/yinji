@@ -346,3 +346,94 @@ export async function deleteSelectedObject() {
     window.Toast.warning('请先选择要删除的印章');
   }
 }
+
+/**
+ * 锁定选中的对象
+ */
+export function lockObject() {
+  const canvas = getCurrentPageCanvas();
+  if (!canvas) return false;
+
+  const activeObject = canvas.getActiveObject();
+  if (!activeObject) {
+    window.Toast.warning('请先选择要锁定的印章');
+    return false;
+  }
+
+  activeObject.set({
+    lockMovementX: true,
+    lockMovementY: true,
+    lockScalingX: true,
+    lockScalingY: true,
+    lockRotation: true,
+    isLocked: true,
+    borderColor: '#f59e0b',
+    cornerColor: '#ccc',
+    cornerSize: 0,
+  });
+  canvas.renderAll();
+  window.Toast.success('已锁定印章');
+  return true;
+}
+
+/**
+ * 解锁选中的对象
+ */
+export function unlockObject() {
+  const canvas = getCurrentPageCanvas();
+  if (!canvas) return false;
+
+  const activeObject = canvas.getActiveObject();
+  if (!activeObject) {
+    window.Toast.warning('请先选择要解锁的印章');
+    return false;
+  }
+
+  // 骑缝章不解锁 lockMovementX（需要同步机制）
+  if (activeObject.straddleGroup) {
+    activeObject.set({
+      lockScalingX: false,
+      lockScalingY: false,
+      lockRotation: false,
+      isLocked: false,
+      borderColor: '#007bff',
+      cornerColor: '#007bff',
+      cornerSize: 10,
+    });
+  } else {
+    activeObject.set({
+      lockMovementX: false,
+      lockMovementY: false,
+      lockScalingX: false,
+      lockScalingY: false,
+      lockRotation: false,
+      isLocked: false,
+      borderColor: '#007bff',
+      cornerColor: '#007bff',
+      cornerSize: 10,
+    });
+  }
+  canvas.renderAll();
+  window.Toast.success('已解锁印章');
+  return true;
+}
+
+/**
+ * 切换选中对象的锁定状态
+ */
+export function toggleLockSelected() {
+  const canvas = getCurrentPageCanvas();
+  if (!canvas) return;
+
+  const activeObject = canvas.getActiveObject();
+  if (!activeObject) {
+    window.Toast.warning('请先选择要操作的印章');
+    return false;
+  }
+
+  if (activeObject.isLocked) {
+    return unlockObject();
+  } else {
+    return lockObject();
+  }
+}

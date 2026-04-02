@@ -14,8 +14,22 @@ import {
   addNormalSeal,
   addStraddleSeal,
   deleteSelectedObject,
+  lockObject,
+  unlockObject,
+  toggleLockSelected,
 } from './modules/stamp-manager.js';
 import { exportPDF } from './modules/exporter.js';
+import {
+  initOn as initGuidelines,
+  setEnabled as setGuidelinesEnabled,
+  isEnabled as isGuidelinesEnabled,
+  destroyOn as destroyGuidelines,
+} from './modules/guideline-manager.js';
+import {
+  copySelected,
+  pasteClipboard,
+  hasClipboard,
+} from './modules/object-clipboard.js';
 
 // ==================== DOM Elements ====================
 
@@ -35,6 +49,12 @@ const zoomSlider = document.getElementById('zoom-slider');
 const pageSelector = document.getElementById('page-selector');
 const rotationSlider = document.getElementById('rotation-slider');
 const rotationInput = document.getElementById('rotation-input');
+const coordXInput = document.getElementById('coord-x');
+const coordYInput = document.getElementById('coord-y');
+const copyStampBtn = document.getElementById('copy-stamp-btn');
+const pasteStampBtn = document.getElementById('paste-stamp-btn');
+const lockStampBtn = document.getElementById('lock-stamp-btn');
+const guidelineToggleBtn = document.getElementById('guideline-toggle-btn');
 
 // ==================== Initialization ====================
 
@@ -44,6 +64,16 @@ async function main() {
 
   initializeEventListeners();
   initContextMenu();
+
+  // Wrap showPage to init guidelines on page switch
+  const origShowPage = window.showPage;
+  window.showPage = async function (pageNum, forceRecalculate) {
+    if (origShowPage) {
+      await origShowPage(pageNum, forceRecalculate);
+    }
+    initGuidelinesOnCurrentCanvas();
+    setupCoordinateInputs();
+  };
 
   console.log('PDF Stamper initialized');
 }
@@ -107,6 +137,39 @@ function initializeEventListeners() {
   exportPdfBtn.addEventListener('click', () =>
     exportPDF(pdfInputElement.files[0])
   );
+
+  // Copy / Paste buttons
+  if (copyStampBtn) {
+    copyStampBtn.addEventListener('click', () => copySelected());
+  }
+  if (pasteStampBtn) {
+    pasteStampBtn.addEventListener('click', async () => {
+      if (!hasClipboard()) {
+        window.Toast.warning('剪贴板为空');
+        return;
+      }
+      await pasteClipboard();
+    });
+  }
+
+  // Lock button
+  if (lockStampBtn) {
+    lockStampBtn.addEventListener('click', () => toggleLockSelected());
+  }
+
+  // Guideline toggle button
+  if (guidelineToggleBtn) {
+    guidelineToggleBtn.addEventListener('click', () => {
+      setGuidelinesEnabled(!isGuidelinesEnabled());
+      guidelineToggleBtn.classList.toggle('active', isGuidelinesEnabled());
+      guidelineToggleBtn.textContent = isGuidelinesEnabled() ? '辅助线 ON' : '辅助线';
+    });
+    guidelineToggleBtn.classList.add('active');
+    guidelineToggleBtn.textContent = '辅助线 ON';
+  }
+
+  // Coordinate input events
+  setupCoordinateInputs();
 
   // Help button
   const helpBtn = document.getElementById('helpBtn');
@@ -241,6 +304,7 @@ function handlePdfFileWithCallbacks(file) {
     onLoadingEnd: () => {
       window.Loading.hide();
       appContainer.classList.remove('no-pdf-loaded');
+      initGuidelinesOnCurrentCanvas();
     },
     onError: (message) => {
       window.Toast.error(message);
@@ -309,6 +373,31 @@ function handleKeyboardShortcuts(e) {
     return;
   }
 
+  // Ctrl+C: Copy
+  if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+    e.preventDefault();
+    copySelected();
+    return;
+  }
+
+  // Ctrl+V: Paste
+  if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+    e.preventDefault();
+    if (!hasClipboard()) {
+      window.Toast.warning('剪贴板为空');
+      return;
+    }
+    pasteClipboard();
+    return;
+  }
+
+  // Ctrl+L: Lock/Unlock
+  if ((e.ctrlKey || e.metaKey) && e.key === 'l') {
+    e.preventDefault();
+    toggleLockSelected();
+    return;
+  }
+
   // Ctrl+S: Export PDF
   if ((e.ctrlKey || e.metaKey) && e.key === 's') {
     e.preventDefault();
@@ -335,6 +424,10 @@ function handleKeyboardShortcuts(e) {
     activeObject &&
     ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)
   ) {
+    if (activeObject.isLocked) {
+      window.Toast?.warning('此印章已锁定');
+      return;
+    }
     e.preventDefault();
     const step = e.shiftKey ? 10 : 1;
     const oldState = window.History.getObjectState(activeObject);
@@ -492,6 +585,9 @@ function showShortcutsHelp() {
         { keys: 'Ctrl+Y', desc: '重做' },
         { keys: 'Delete', desc: '删除选中印章' },
         { keys: 'Esc', desc: '取消选择' },
+        { keys: 'Ctrl+C', desc: '复制选中印章' },
+        { keys: 'Ctrl+V', desc: '粘贴印章' },
+        { keys: 'Ctrl+L', desc: '锁定/解锁印章' },
       ],
     },
     {
@@ -660,6 +756,17 @@ function handleContextMenuAction(action) {
     case 'delete':
       deleteSelectedObject();
       break;
+    case 'copy':
+      copySelected();
+      break;
+    case 'paste':
+      if (hasClipboard()) {
+        pasteClipboard();
+      }
+      break;
+    case 'toggle-lock':
+      toggleLockSelected();
+      break;
     case 'undo':
       window.History.undo();
       break;
@@ -667,6 +774,90 @@ function handleContextMenuAction(action) {
       window.History.redo();
       break;
   }
+}
+
+/**
+ * Setup X/Y coordinate inputs to update selected object position
+ */
+function setupCoordinateInputs() {
+  const canvas = getCurrentPageCanvas();
+
+  // Update inputs when selection changes
+  if (canvas) {
+    canvas.on('selection:created', _updateCoordInputs);
+    canvas.on('selection:updated', _updateCoordInputs);
+    canvas.on('object:moving', _updateCoordInputs);
+    canvas.on('selection:cleared', _clearCoordInputs);
+  }
+
+  // Listen for input changes
+  if (coordXInput) {
+    coordXInput.addEventListener('change', _applyCoordInputs);
+  }
+  if (coordYInput) {
+    coordYInput.addEventListener('change', _applyCoordInputs);
+  }
+}
+
+function _updateCoordInputs(e) {
+  const obj = e?.target || getCurrentPageCanvas()?.getActiveObject();
+  if (!obj) return;
+  if (coordXInput) coordXInput.value = Math.round(obj.left || 0);
+  if (coordYInput) coordYInput.value = Math.round(obj.top || 0);
+}
+
+function _clearCoordInputs() {
+  if (coordXInput) coordXInput.value = '';
+  if (coordYInput) coordYInput.value = '';
+}
+
+function _applyCoordInputs() {
+  const canvas = getCurrentPageCanvas();
+  if (!canvas) return;
+  const activeObject = canvas.getActiveObject();
+  if (!activeObject || activeObject.isLocked) return;
+
+  const x = parseFloat(coordXInput.value);
+  const y = parseFloat(coordYInput.value);
+
+  if (isNaN(x) && isNaN(y)) return;
+
+  const oldState = window.History.getObjectState(activeObject);
+
+  if (!isNaN(x)) activeObject.set({ left: x });
+  if (!isNaN(y)) activeObject.set({ top: y });
+
+  canvas.renderAll();
+
+  const newState = window.History.getObjectState(activeObject);
+  const command = new window.History.ModifySealCommand(
+    getCurrentActivePage(),
+    activeObject,
+    oldState,
+    newState
+  );
+  window.History.executeCommand(command);
+}
+
+/**
+ * Toggle alignment guidelines on/off
+ */
+function toggleGuidelines() {
+  const enabled = !isGuidelinesEnabled();
+  setGuidelinesEnabled(enabled);
+  if (guidelineToggleBtn) {
+    guidelineToggleBtn.classList.toggle('active', enabled);
+    guidelineToggleBtn.textContent = enabled ? '辅助线 ON' : '辅助线';
+  }
+}
+
+/**
+ * Initialize guidelines on the current page canvas
+ */
+function initGuidelinesOnCurrentCanvas() {
+  const canvas = getCurrentPageCanvas();
+  if (!canvas) return;
+  initGuidelines(canvas);
 }
 
 // ==================== Remove White Background ====================
