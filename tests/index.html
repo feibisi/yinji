@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PDF Stamper - 单元测试</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f7fa; padding: 2rem; }
+    .header { text-align: center; margin-bottom: 2rem; }
+    .header h1 { color: #333; margin-bottom: 0.5rem; }
+    .test-container { max-width: 800px; margin: 0 auto; background: white; border-radius: 8px; padding: 2rem; }
+    .test-section { margin-bottom: 2rem; padding: 1rem; border: 1px solid #e0e0e0; border-radius: 4px; }
+    .test-section h2 { color: #007bff; margin-bottom: 1rem; }
+    #test-results { font-size: 1.1rem; font-weight: bold; margin-top: 1rem; padding: 1rem; background: #e9ecef; border-radius: 4px; }
+    .btn { display: inline-block; padding: 0.75rem 1.5rem; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; margin: 0.5rem 0.5rem 0.5rem 0; }
+    .btn:hover { background: #0056b3; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>PDF Stamper - 单元测试</h1>
+    <p>自动化测试 validators.js 和 state.js</p>
+  </div>
+  <div class="test-container">
+    <div class="test-section">
+      <h2>Validators 测试</h2>
+      <div id="validators-results"></div>
+    </div>
+    <div class="test-section">
+      <h2>State 管理测试</h2>
+      <div id="state-results"></div>
+    </div>
+    <div id="test-results">运行测试中...</div>
+    <div style="margin-top: 1.5rem;">
+      <button class="btn" id="rerun-btn">重新运行所有测试</button>
+      <button class="btn" onclick="window.location.href='../'">返回应用</button>
+    </div>
+  </div>
+  <script src="../src/core/state.js"></script>
+  <script src="../src/utils/validators.js"></script>
+  <script src="./validators.test.js"></script>
+  <script src="./state.test.js"></script>
+  <script>
+    function runAllTests() {
+      var vr = { passed: 0, failed: 0 };
+      var sr = { passed: 0, failed: 0 };
+
+      // Run validators
+      window.testResults = { passed: 0, failed: 0, tests: [] };
+      window.runValidatorTests();
+      vr.passed = window.testResults.passed;
+      vr.failed = window.testResults.failed;
+
+      // Run state
+      window.testResults = { passed: 0, failed: 0, tests: [] };
+      window.runStateTests();
+      sr.passed = window.testResults.passed;
+      sr.failed = window.testResults.failed;
+
+      var totalPassed = vr.passed + sr.passed;
+      var totalFailed = vr.failed + sr.failed;
+      var total = totalPassed + totalFailed;
+      var pct = total > 0 ? Math.round((totalPassed / total) * 100) : 0;
+
+      document.getElementById('test-results').textContent = '总计: ' + total + ' | 通过: ' + totalPassed + ' | 失败: ' + totalFailed + ' | 通过率: ' + pct + '%';
+      document.getElementById('validators-results').textContent = 'Validators: ' + vr.passed + '/' + (vr.passed + vr.failed) + ' 通过';
+      document.getElementById('state-results').textContent = 'State: ' + sr.passed + '/' + (sr.passed + sr.failed) + ' 通过';
+    }
+
+    document.getElementById('rerun-btn').addEventListener('click', runAllTests);
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function() { setTimeout(runAllTests, 100); });
+    } else {
+      setTimeout(runAllTests, 100);
+    }
+  </script>
+</body>
+</html>
