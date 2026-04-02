@@ -14,8 +14,6 @@ import {
   addNormalSeal,
   addStraddleSeal,
   deleteSelectedObject,
-  lockObject,
-  unlockObject,
   toggleLockSelected,
 } from './modules/stamp-manager.js';
 import { exportPDF } from './modules/exporter.js';
@@ -23,7 +21,6 @@ import {
   initOn as initGuidelines,
   setEnabled as setGuidelinesEnabled,
   isEnabled as isGuidelinesEnabled,
-  destroyOn as destroyGuidelines,
 } from './modules/guideline-manager.js';
 import {
   copySelected,
