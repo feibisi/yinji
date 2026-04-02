@@ -1,4 +1,5 @@
 import { getState } from '../core/state.js';
+import { generateSafeExportFilename } from '../utils/security.js';
 
 /**
  * PDF 导出模块
@@ -79,8 +80,9 @@ export async function exportPDF(pdfFile) {
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
 
-    const fileName = pdfFile?.name.replace('.pdf', '') || 'document';
-    link.download = `${fileName}_盖章版.pdf`;
+    // Use secure filename generation
+    const safeFilename = generateSafeExportFilename(pdfFile, '_盖章版');
+    link.download = safeFilename;
 
     window.Loading.updateProgress(100, '完成！');
     link.click();

@@ -18,6 +18,7 @@ import {
 } from './modules/stamp-manager.js';
 import { exportPDF } from './modules/exporter.js';
 import { initResponsive } from './modules/responsive.js';
+import { initSecurity } from './utils/security.js';
 import {
   initOn as initGuidelines,
   setEnabled as setGuidelinesEnabled,
@@ -59,6 +60,9 @@ const guidelineToggleBtn = document.getElementById('guideline-toggle-btn');
 async function main() {
   pdfjsLib.GlobalWorkerOptions.workerSrc =
     'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs';
+
+  // Initialize security measures (CSP, clickjacking prevention)
+  initSecurity();
 
   // Initialize responsive layout for mobile
   initResponsive();
