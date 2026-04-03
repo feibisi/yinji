@@ -650,6 +650,7 @@ function updateSealPreviewBrightness() {
  */
 async function saveSealToLibrary() {
   const sealImageElement = getState().sealImageElement;
+  const state = getState();
 
   if (
     !sealImageElement ||
@@ -675,10 +676,18 @@ async function saveSealToLibrary() {
     return;
   }
 
+  // Save with full settings
+  const settings = {
+    rotation: state.sealRotation,
+    brightness: state.sealBrightness,
+    opacity: 1,
+    size: 0.15,
+  };
+
   const success = window.SealLibrary.addSealToLibrary(
     sealName.trim(),
     sealImageElement.src,
-    getState().sealRotation
+    settings
   );
 
   if (success) {

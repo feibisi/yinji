@@ -41,13 +41,13 @@ function saveSealsTolocalStorage(seals) {
 }
 
 /**
- * Add a seal to the library
+ * Add a seal to the library with full settings
  * @param {string} name - Seal name
  * @param {string} imageData - Base64 image data
- * @param {number} rotation - Rotation angle
+ * @param {Object} settings - Seal settings (rotation, opacity, size, brightness)
  * @returns {boolean} Success status
  */
-function addSealToLibrary(name, imageData, rotation = 0) {
+function addSealToLibrary(name, imageData, settings = {}) {
   const seals = getSavedSeals();
 
   // Check if library is full
@@ -56,18 +56,22 @@ function addSealToLibrary(name, imageData, rotation = 0) {
     return false;
   }
 
-  // Check if name already exists
-  if (seals.some(seal => seal.name === name)) {
-    window.Toast?.warning('印章名称已存在，请使用其他名称');
-    return false;
+  // Check if name already exists (offer overwrite)
+  const existingIndex = seals.findIndex(seal => seal.name === name);
+  if (existingIndex !== -1) {
+    window.Toast?.warning('印章名称已存在，将覆盖旧版本');
+    seals.splice(existingIndex, 1);
   }
 
-  // Add new seal
+  // Add new seal with full settings
   const newSeal = {
     id: Date.now().toString(),
     name: name,
     imageData: imageData,
-    rotation: rotation,
+    rotation: settings.rotation || 0,
+    opacity: settings.opacity || 1,
+    size: settings.size || 0.15,
+    brightness: settings.brightness || 100,
     createdAt: new Date().toISOString(),
   };
 
@@ -208,18 +212,20 @@ function renderSealLibrary() {
 }
 
 /**
- * Load and apply a seal from library
+ * Load and apply a seal from library with all settings
  * @param {string} sealId - Seal ID
  */
 function loadAndApplySeal(sealId) {
   const seal = loadSealFromLibrary(sealId);
   if (!seal) return;
 
-  // Set seal image and rotation
+  // Set seal image and all settings
   const sealPreviewImg = document.getElementById('seal-preview');
   const sealPlaceholder = document.getElementById('seal-placeholder');
   const rotationSlider = document.getElementById('rotation-slider');
   const rotationInput = document.getElementById('rotation-input');
+  const brightnessSlider = document.getElementById('brightness-slider');
+  const brightnessValue = document.getElementById('brightness-value');
 
   if (sealPreviewImg && sealPlaceholder) {
     sealPreviewImg.src = seal.imageData;
@@ -228,18 +234,26 @@ function loadAndApplySeal(sealId) {
 
     const sealImageElement = new Image();
     sealImageElement.src = seal.imageData;
+    sealImageElement.onload = () => {
+      // Apply all settings
+      if (rotationSlider && rotationInput) {
+        rotationSlider.value = seal.rotation || 0;
+        rotationInput.value = seal.rotation || 0;
+        sealPreviewImg.style.transform = `rotate(${seal.rotation || 0}deg)`;
+      }
 
-    // Set rotation
-    if (rotationSlider && rotationInput) {
-      rotationSlider.value = seal.rotation;
-      rotationInput.value = seal.rotation;
-      sealPreviewImg.style.transform = `rotate(${seal.rotation}deg)`;
-    }
+      if (brightnessSlider && brightnessValue) {
+        brightnessSlider.value = seal.brightness || 100;
+        brightnessValue.textContent = `${seal.brightness || 100}%`;
+        sealPreviewImg.style.filter = `brightness(${(seal.brightness || 100) / 100})`;
+      }
 
-    setState({
-      sealImageElement,
-      sealRotation: seal.rotation,
-    });
+      setState({
+        sealImageElement,
+        sealRotation: seal.rotation || 0,
+        sealBrightness: seal.brightness || 100,
+      });
+    };
 
     window.Toast?.success(`已加载印章 "${seal.name}"`);
   }
