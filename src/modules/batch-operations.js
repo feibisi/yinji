@@ -271,3 +271,99 @@ export async function deleteAllStampsFromSelectedPages() {
     return false;
   }
 }
+
+/**
+ * 导出选中页面为 PDF
+ * @param {File|null} originalFile - 原始 PDF 文件
+ * @param {string} exportMode - 'selected' (仅选中页) | 'all' (全部) | 'split' (分别导出)
+ * @returns {Promise<boolean>}
+ */
+export async function exportSelectedPages(originalFile, exportMode = 'selected') {
+  const selectedPages = getState().selectedPages;
+  const pdfDoc = getState().pdfDoc;
+  const originalPdfBytes = getState().originalPdfBytes;
+
+  if (!pdfDoc || !originalPdfBytes) {
+    window.Toast.warning('请先加载 PDF 文件');
+    return false;
+  }
+
+  // 确定要导出的页面
+  let pagesToExport = [];
+  if (exportMode === 'selected' && selectedPages.size > 0) {
+    pagesToExport = Array.from(selectedPages).sort((a, b) => a - b);
+  } else if (exportMode === 'all' || exportMode === 'split') {
+    for (let i = 1; i <= pdfDoc.numPages; i++) {
+      pagesToExport.push(i);
+    }
+  } else {
+    window.Toast.warning('请先选择要导出的页面');
+    return false;
+  }
+
+  if (pagesToExport.length === 0) {
+    window.Toast.warning('没有要导出的页面');
+    return false;
+  }
+
+  window.Loading.showExportLoading('正在准备导出 PDF...');
+
+  try {
+    const { PDFDocument} = window.PDFLib;
+
+    if (exportMode === 'split') {
+      // 分别导出每个页面为独立文件
+      for (let i = 0; i < pagesToExport.length; i++) {
+        const pageNum = pagesToExport[i];
+        const newPdf = await PDFDocument.create();
+        const [copiedPage] = await newPdf.copyPages(pdfDoc, [pageNum - 1]);
+        newPdf.addPage(copiedPage);
+
+        const bytes = await newPdf.save();
+        const blob = new Blob([bytes], { type: 'application/pdf' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        const baseName = originalFile?.name?.replace('.pdf', '') || 'document';
+        link.download = `${baseName}_page${pageNum}.pdf`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+
+        window.Loading.updateProgress(
+          ((i + 1) / pagesToExport.length) * 100,
+          `导出第 ${i + 1}/${pagesToExport.length} 页`
+        );
+      }
+      window.Toast.success(`已导出 ${pagesToExport.length} 个独立文件`);
+    } else {
+      // 合并导出为一个 PDF
+      const newPdf = await PDFDocument.create();
+      const pageIndices = pagesToExport.map(p => p - 1);
+      const copiedPages = await newPdf.copyPages(pdfDoc, pageIndices);
+
+      copiedPages.forEach(page => newPdf.addPage(page));
+
+      window.Loading.updateProgress(80, '正在生成文件...');
+      const bytes = await newPdf.save();
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+
+      const { generateSafeExportFilename } = await import('../utils/security.js');
+      const suffix = exportMode === 'selected' ? `_选中${pagesToExport.length}页` : '';
+      link.download = generateSafeExportFilename(originalFile, suffix);
+
+      window.Loading.updateProgress(100, '完成！');
+      link.click();
+      URL.revokeObjectURL(link.href);
+      window.Toast.success(`已导出 ${pagesToExport.length} 页`);
+    }
+
+    window.Loading.hide();
+    return true;
+  } catch (error) {
+    console.error('导出 PDF 失败:', error);
+    window.Toast.error('导出失败，详情请查看控制台');
+    window.Loading.hide();
+    return false;
+  }
+}

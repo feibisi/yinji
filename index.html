@@ -163,6 +163,15 @@
               <button id="exportPDF" class="btn btn-primary btn-export">导出盖章 PDF</button>
             </div>
             <div class="tool-section">
+              <h3>批量导出</h3>
+              <div class="button-group">
+                <button class="btn btn-secondary" id="export-selected-btn" title="导出选中的页面">导出选中页面</button>
+                <button class="btn btn-secondary" id="export-all-btn" title="导出全部页面">导出全部页面</button>
+                <button class="btn btn-secondary" id="export-split-btn" title="每页独立导出为单个文件">分别导出</button>
+              </div>
+              <p id="export-hint" style="font-size:0.75rem;color:var(--text-color-secondary);margin-top:0.5rem;"></p>
+            </div>
+            <div class="tool-section">
               <h3>批量处理</h3>
               <div class="button-group">
                 <button class="btn btn-secondary" id="upload-batch-btn">添加批量文件</button>

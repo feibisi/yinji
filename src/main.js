@@ -37,6 +37,7 @@ import {
   setMultiSelectMode,
   addSealToSelectedPages,
   deleteAllStampsFromSelectedPages,
+  exportSelectedPages,
 } from './modules/batch-operations.js';
 
 // ==================== DOM Elements ====================
@@ -397,6 +398,46 @@ function setupBatchOperations() {
       await deleteAllStampsFromSelectedPages();
     });
   }
+
+  // Export buttons
+  const exportSelectedBtn = document.getElementById('export-selected-btn');
+  const exportAllBtn = document.getElementById('export-all-btn');
+  const exportSplitBtn = document.getElementById('export-split-btn');
+  const exportHint = document.getElementById('export-hint');
+
+  if (exportSelectedBtn) {
+    exportSelectedBtn.addEventListener('click', async () => {
+      await exportSelectedPages(pdfInputElement.files[0], 'selected');
+    });
+  }
+  if (exportAllBtn) {
+    exportAllBtn.addEventListener('click', async () => {
+      await exportSelectedPages(pdfInputElement.files[0], 'all');
+    });
+  }
+  if (exportSplitBtn) {
+    exportSplitBtn.addEventListener('click', async () => {
+      await exportSelectedPages(pdfInputElement.files[0], 'split');
+    });
+  }
+
+  // Update export hint based on selection
+  function updateExportHint() {
+    const selectedPages = getState().selectedPages;
+    if (exportHint) {
+      if (selectedPages.size > 0) {
+        const pages = Array.from(selectedPages).sort((a, b) => a - b).join(', ');
+        exportHint.textContent = `当前选中: ${pages} 页`;
+      } else {
+        exportHint.textContent = '未选择页面，将导出全部页面';
+      }
+    }
+  }
+
+  // Observe state changes to update hint
+  const { subscribe } = await import('./core/state.js');
+  subscribe(() => updateExportHint());
+  updateExportHint();
 
   // Thumbnail click for multi-select (Shift/Ctrl)
   if (thumbnailContainer) {
