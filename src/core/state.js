@@ -35,6 +35,12 @@ const appState = {
 
   /** @type {number} 印章亮度（0-200，100为正常） */
   sealBrightness: 100,
+
+  /** @type {Set<number>} 批量操作：选中的页面编号集合 */
+  selectedPages: new Set(),
+
+  /** @type {boolean} 是否处于批量选择模式 */
+  isMultiSelectMode: false,
 };
 
 const stateListeners = new Set();

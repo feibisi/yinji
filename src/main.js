@@ -29,6 +29,15 @@ import {
   pasteClipboard,
   hasClipboard,
 } from './modules/object-clipboard.js';
+import {
+  togglePageSelection,
+  selectPageRange,
+  selectAllPages,
+  clearSelection,
+  setMultiSelectMode,
+  addSealToSelectedPages,
+  deleteAllStampsFromSelectedPages,
+} from './modules/batch-operations.js';
 
 // ==================== DOM Elements ====================
 
@@ -218,6 +227,9 @@ function initializeEventListeners() {
     });
   });
 
+  // Batch operations
+  setupBatchOperations();
+
   // Keyboard shortcuts
   document.addEventListener('keydown', handleKeyboardShortcuts);
 
@@ -350,6 +362,61 @@ function setupBatchProcessing() {
     clearBatchBtn.addEventListener('click', () =>
       window.BatchProcessing.clearBatchQueue()
     );
+  }
+}
+
+/**
+ * Setup batch operations (multi-page selection)
+ */
+function setupBatchOperations() {
+  const selectAllBtn = document.getElementById('select-all-pages-btn');
+  const clearSelectionBtn = document.getElementById('clear-selection-btn');
+  const batchAddSealBtn = document.getElementById('batch-add-seal-btn');
+  const batchDeleteStampsBtn = document.getElementById('batch-delete-stamps-btn');
+  const thumbnailContainer = document.getElementById('thumbnail-container');
+
+  if (selectAllBtn) {
+    selectAllBtn.addEventListener('click', () => selectAllPages());
+  }
+  if (clearSelectionBtn) {
+    clearSelectionBtn.addEventListener('click', () => clearSelection());
+  }
+  if (batchAddSealBtn) {
+    batchAddSealBtn.addEventListener('click', async () => {
+      const sealImageElement = getState().sealImageElement;
+      if (!sealImageElement || !sealImageElement.src) {
+        window.Toast.warning('请先选择印章图片');
+        return;
+      }
+      const settings = window.Settings.getSettings();
+      await addSealToSelectedPages(sealImageElement, settings);
+    });
+  }
+  if (batchDeleteStampsBtn) {
+    batchDeleteStampsBtn.addEventListener('click', async () => {
+      await deleteAllStampsFromSelectedPages();
+    });
+  }
+
+  // Thumbnail click for multi-select (Shift/Ctrl)
+  if (thumbnailContainer) {
+    thumbnailContainer.addEventListener('click', (e) => {
+      const thumb = e.target.closest('.thumbnail-item');
+      if (!thumb) return;
+
+      const pageNum = parseInt(thumb.dataset.pageNumber);
+      if (!pageNum) return;
+
+      if (e.ctrlKey || e.metaKey) {
+        // Ctrl+Click: Toggle single page
+        e.preventDefault();
+        togglePageSelection(pageNum);
+      } else if (e.shiftKey) {
+        // Shift+Click: Select range
+        e.preventDefault();
+        selectPageRange(pageNum);
+      }
+    });
   }
 }
 
