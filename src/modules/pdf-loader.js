@@ -101,7 +101,19 @@ export async function handlePdfFile(
         pageFitScales: new Array(getTotalPages()).fill(null),
       });
 
-      await renderAllPages(onPagesRendered);
+      // When virtual scroller is enabled, skip rendering all pages
+      // Virtual scroller will handle on-demand rendering
+      const { getVirtualScrollerState } = await import('./thumbnail-virtual-scroller.js');
+      const vState = getVirtualScrollerState();
+
+      if (vState) {
+        // Virtual scroller mode: just create sidebar items, no canvas rendering
+        createThumbnailList(getTotalPages());
+      } else {
+        // Fallback: traditional mode
+        await renderAllPages(onPagesRendered);
+      }
+
       onLoadingEnd();
     } catch (error) {
       console.error('加载 PDF 失败:', error);
@@ -111,6 +123,25 @@ export async function handlePdfFile(
   };
 
   fileReader.readAsArrayBuffer(file);
+}
+
+/**
+ * 创建缩略图列表（虚拟滚动模式下使用）
+ * @param {number} totalPages - 总页数
+ */
+export function createThumbnailList(totalPages) {
+  const container = document.getElementById('thumbnail-container');
+  if (!container) return;
+
+  // 清空旧内容（保留空状态）
+  Array.from(container.children).forEach(child => {
+    if (!child.classList.contains('empty-state')) {
+      child.remove();
+    }
+  });
+
+  // 虚拟滚动会自动创建 items，这里不需要手动创建
+  // virtual scroller will handle everything
 }
 
 /**

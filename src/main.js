@@ -39,6 +39,11 @@ import {
   deleteAllStampsFromSelectedPages,
   exportSelectedPages,
 } from './modules/batch-operations.js';
+import {
+  initVirtualScroller,
+  refreshVirtualScroller,
+  cleanupVirtualScroller,
+} from './modules/thumbnail-virtual-scroller.js';
 
 // ==================== DOM Elements ====================
 
@@ -76,6 +81,13 @@ async function main() {
 
   // Initialize responsive layout for mobile
   initResponsive();
+
+  // Initialize virtual scroller for thumbnails (will be activated after PDF load)
+  const thumbnailContainer = document.getElementById('thumbnail-container');
+  const virtualScroller = initVirtualScroller(thumbnailContainer);
+  if (virtualScroller) {
+    setState({ virtualScroller });
+  }
 
   initializeEventListeners();
   initContextMenu();
@@ -301,13 +313,8 @@ function initializeEventListeners() {
 
   setupSignatureModal();
 
-  // Thumbnail scrolling
-  if (thumbnailContainer) {
-    thumbnailContainer.addEventListener('scroll', scheduleVisibleThumbnailRender, {
-      passive: true,
-    });
-    window.addEventListener('resize', scheduleVisibleThumbnailRender);
-  }
+  // Virtual scroller handles thumbnail rendering automatically
+  // No need for manual scroll listeners - handled by initVirtualScroller()
 }
 
 /**
@@ -323,6 +330,9 @@ function handlePdfFileWithCallbacks(file) {
       window.Loading.hide();
       appContainer.classList.remove('no-pdf-loaded');
       initGuidelinesOnCurrentCanvas();
+
+      // Refresh virtual scroller after PDF is loaded
+      setTimeout(() => refreshVirtualScroller(), 200);
     },
     onError: (message) => {
       window.Toast.error(message);
