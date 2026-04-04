@@ -6,7 +6,6 @@
 let isMobile = false;
 let touchStartX = 0;
 let touchStartY = 0;
-let gestureState = { zoom: 1, rotation: 0 };
 
 /**
  * 检测屏幕宽度并应用响应式布局
@@ -54,15 +53,6 @@ function getTouchDistance(touch1, touch2) {
 }
 
 /**
- * 计算触摸两点间角度
- */
-function getTouchAngle(touch1, touch2) {
-  const dx = touch1.clientX - touch2.clientX;
-  const dy = touch1.clientY - touch2.clientY;
-  return (Math.atan2(dy, dx) * 180) / Math.PI;
-}
-
-/**
  * 初始化触摸手势支持
  * @param {HTMLElement} canvasEl - 画布元素
  */
@@ -70,7 +60,6 @@ export function initTouchGestures(canvasEl) {
   if (!canvasEl) return;
 
   let initialScale = 1;
-  let initialRotation = 0;
   let objectBeingMoved = null;
 
   canvasEl.addEventListener('touchstart', (e) => {
@@ -82,7 +71,6 @@ export function initTouchGestures(canvasEl) {
     } else if (e.touches.length === 2) {
       // 双指触摸：缩放+旋转
       initialScale = getTouchDistance(e.touches[0], e.touches[1]);
-      initialRotation = getTouchAngle(e.touches[0], e.touches[1]);
       e.preventDefault();
     }
   }, { passive: false });
@@ -127,36 +115,7 @@ export function initTouchGestures(canvasEl) {
   }, { passive: false });
 
   canvasEl.addEventListener('touchend', (e) => {
-    // 触摸结束：清除状态
     objectBeingMoved = null;
-    gestureState = { zoom: 1, rotation: 0 };
-  });
-}
-
-/**
- * 优化移动端 UI 元素
- */
-export function optimizeMobileUI() {
-  if (!isMobile) return;
-
-  // 增大按钮触摸区域
-  const buttons = document.querySelectorAll('.btn, .toolbar-btn, .icon-btn');
-  buttons.forEach((btn) => {
-    btn.style.minWidth = '44px';
-    btn.style.minHeight = '44px';
-    btn.style.padding = '8px';
-  });
-
-  // 隐藏桌面端专用提示
-  const desktopHints = document.querySelectorAll('.desktop-only');
-  desktopHints.forEach((hint) => {
-    hint.style.display = 'none';
-  });
-
-  // 显示移动端专用提示
-  const mobileHints = document.querySelectorAll('.mobile-only');
-  mobileHints.forEach((hint) => {
-    hint.style.display = 'block';
   });
 }
 

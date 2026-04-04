@@ -262,21 +262,21 @@ function updateWorkflowGuidance({
   }
 
   if (editNextStep) {
-    let text = '先选择文件。';
+    let text = '打开一个文件试试。';
 
     if (hasPdf && !hasSeal) {
-      text = '下一步：选择印章图片，或打开手写签名。';
+      text = '接下来选个印章，或打开手写签名。';
     } else if (hasPdf && hasSeal && placedStampCount === 0) {
-      text = `下一步：点“盖到当前页”，把印章放到第 ${currentActivePage} 页。`;
+      text = `印章准备好了，点上面的按钮放到第 ${currentActivePage} 页。`;
     } else if (hasPdf && placedStampCount > 0) {
-      text = `已放置 ${placedStampCount} 个对象。现在可直接下载，或去页面导出。`;
+      text = `已放置 ${placedStampCount} 个对象。可以直接下载，或去页面导出。`;
     }
 
     editNextStep.textContent = text;
   }
 
   if (exportNextStep) {
-    let text = '先在“编辑”里盖章，再回来下载文件。';
+    let text = '去「编辑」盖好章后回来就好。';
 
     if (currentExportMode === 'batch') {
       if (lastBatchQueueState.processing) {
@@ -287,16 +287,16 @@ function updateWorkflowGuidance({
           ? `正在处理 ${progressText}：${lastBatchQueueState.currentFileName}。`
           : `正在处理 ${progressText}。`;
       } else if (lastBatchQueueState.count === 0) {
-        text = '先添加要一起处理的 PDF。';
+        text = '先添加要处理的 PDF。';
       } else if (!hasSeal) {
-        text = '队列已准备。先回到“编辑”选择印章，再开始处理。';
+        text = '文件已添加，先回「编辑」选好印章再开始。';
       } else {
         text = `队列里有 ${lastBatchQueueState.count} 个文件，可以开始批量处理。`;
       }
     } else if (!hasPdf) {
-      text = '先回到“编辑”选择文件。';
+      text = '先去「编辑」打开文件。';
     } else if (placedStampCount === 0) {
-      text = '文件已加载。先在“编辑”里盖章，再回来下载。';
+      text = '文件已打开，去「编辑」盖好章再来下载。';
     } else if (isImageSource) {
       text = '可以下载盖章后的 PDF，也可以导出 PNG 图片。';
     } else {
@@ -328,7 +328,7 @@ async function loadSamplePdf() {
     handlePdfFileWithCallbacks(file);
   } catch (error) {
     console.error('加载示例文件失败:', error);
-    window.Toast.error('示例文件加载失败，请检查本地文件。');
+    window.Toast.error('示例文件没找到，可能文件不在了。');
   } finally {
     samplePdfButtons.forEach((button) => {
       button.disabled = false;
@@ -568,16 +568,16 @@ function updateToolbarStatus() {
   const guidelineText = isGuidelinesEnabled() ? '对齐辅助线：已开启' : '对齐辅助线：已关闭';
 
   if (editStatusFile) {
-    editStatusFile.textContent = hasPdf ? currentPdfFile.name : '未加载文件';
+    editStatusFile.textContent = hasPdf ? currentPdfFile.name : '还没打开文件';
   }
   if (editStatusPage) {
     editStatusPage.textContent = pageText;
   }
   if (editStatusSummary) {
     if (!hasPdf) {
-      editStatusSummary.textContent = '先选择文件。';
+      editStatusSummary.textContent = '打开一个文件试试。';
     } else if (!hasSeal) {
-      editStatusSummary.textContent = '文件已打开。下一步请选印章图片或手写签名。';
+      editStatusSummary.textContent = '文件已打开，接下来选个印章或手写签名。';
     } else if (activeObject) {
       editStatusSummary.textContent = activeObject.isLocked
         ? '已选中，已锁定。'
@@ -585,14 +585,14 @@ function updateToolbarStatus() {
     } else if (placedStampCount > 0) {
       editStatusSummary.textContent = `已放置 ${placedStampCount} 个对象。点一下印章可继续调整。`;
     } else {
-      editStatusSummary.textContent = '印章已准备，还没放到页面上。';
+      editStatusSummary.textContent = '印章准备好了，点「盖到当前页」放上去。';
     }
   }
   if (placePageChip) {
     placePageChip.textContent = hasPdf ? `当前页 ${currentActivePage} / ${totalPages}` : '当前页 - / -';
   }
   if (placeSealChip) {
-    placeSealChip.textContent = hasSeal ? '印章或签名已就绪' : '先选印章或签名';
+    placeSealChip.textContent = hasSeal ? '印章或签名已就绪' : '选个印章或签名';
   }
   if (sealUploadBtn) {
     sealUploadBtn.textContent = hasSeal ? '更换印章图片' : '选择印章图片';
@@ -621,7 +621,7 @@ function updateToolbarStatus() {
     sealLibraryCountChip.textContent = `已保存 ${savedSealCount} 个印章`;
   }
   if (exportStatusFile) {
-    exportStatusFile.textContent = hasPdf ? currentPdfFile.name : '未加载文件';
+    exportStatusFile.textContent = hasPdf ? currentPdfFile.name : '还没打开文件';
   }
   if (exportStatusSummary) {
     exportStatusSummary.textContent = pageText;
@@ -636,11 +636,11 @@ function updateToolbarStatus() {
           ? `队列里有 ${lastBatchQueueState.count} 个文件。`
           : '先添加要处理的 PDF。';
     } else if (!hasPdf) {
-      exportStatusNote.textContent = '先在“编辑”里选择文件。';
+      exportStatusNote.textContent = '先去「编辑」打开文件。';
     } else if (placedStampCount === 0) {
       exportStatusNote.textContent = isImageSource
-        ? '文件已加载，但还没盖章。导出时可选 PDF 或 PNG。'
-        : '文件已加载，但还没盖章。';
+        ? '文件已打开，还没盖章。导出时可选 PDF 或 PNG。'
+        : '文件已打开，还没盖章。';
     } else if (selectedPages.size > 0) {
       exportStatusNote.textContent = `已放置 ${placedStampCount} 个对象，已选 ${selectedPages.size} 页。`;
     } else if (isImageSource) {
@@ -676,11 +676,11 @@ function updateSidebarCollapsedStatus() {
   }
 
   if (!currentPdfFile) {
-    collapsedSidebarPrimary.textContent = '等待';
-    collapsedSidebarSecondary.textContent = '上传文件';
+    collapsedSidebarPrimary.textContent = '空闲';
+    collapsedSidebarSecondary.textContent = '还没打开文件';
     if (collapsedSidebarPill) {
-      collapsedSidebarPill.title = '等待上传文件';
-      collapsedSidebarPill.setAttribute('aria-label', '等待上传文件');
+      collapsedSidebarPill.title = '还没打开文件';
+      collapsedSidebarPill.setAttribute('aria-label', '还没打开文件');
     }
     return;
   }
@@ -1055,7 +1055,7 @@ function handlePdfFileWithCallbacks(file) {
     console.error('处理 PDF 上传失败:', error);
     window.Loading.hide();
     appContainer.classList.add('no-pdf-loaded');
-    window.Toast.error('文件加载失败，请重试。');
+    window.Toast.error('文件打开失败，再试一次。');
   });
 }
 
@@ -1141,7 +1141,7 @@ function handleKeyboardShortcuts(e) {
     ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)
   ) {
     if (activeObject.isLocked) {
-      window.Toast?.warning('此印章已锁定');
+      window.Toast?.warning('这个印章已锁定。');
       return;
     }
     e.preventDefault();

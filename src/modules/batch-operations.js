@@ -1,60 +1,14 @@
 import { getState, setState } from '../core/state.js';
 import { getCurrentPageCanvas } from './canvas-manager.js';
-import { dataUrlToUint8Array } from '../utils/data-url.js';
+import { loadFabricImage } from '../utils/fabric-helpers.js';
+import { drawCanvasObjectsToPdfPage } from './exporter.js';
 
 /**
  * 批量操作模块
  * 负责多页选择、批量添加/删除印章等功能
  */
 
-/**
- * 兼容 Fabric 6 的图片加载
- * @param {string} src
- * @returns {Promise<fabric.Image>}
- */
-async function loadFabricImage(src) {
-  try {
-    return await fabric.Image.fromURL(src, { crossOrigin: 'anonymous' });
-  } catch (error) {
-    return await fabric.Image.fromURL(src);
-  }
-}
 
-async function drawCanvasObjectsToPdfPage(pdfDoc, pdfPage, canvas) {
-  if (!canvas) return;
-
-  const { width: pageWidth, height: pageHeight } = pdfPage.getSize();
-  const objects = canvas
-    .getObjects()
-    .filter((obj) => !obj.isBackgroundImage);
-
-  for (const obj of objects) {
-    const multiplier = 2;
-    const imgDataUrl = obj.toDataURL({ format: 'png', multiplier });
-    const pngImageBytes = dataUrlToUint8Array(imgDataUrl);
-    const pngImage = await pdfDoc.embedPng(pngImageBytes);
-
-    const objWidth = obj.getScaledWidth();
-    const objHeight = obj.getScaledHeight();
-    let objLeft = obj.left;
-    let objTop = obj.top;
-
-    if (obj.originX === 'center') objLeft -= objWidth / 2;
-    if (obj.originY === 'center') objTop -= objHeight / 2;
-
-    const pdfX = (objLeft / canvas.originalWidth) * pageWidth;
-    const pdfY =
-      pageHeight - ((objTop + objHeight) / canvas.originalHeight) * pageHeight;
-
-    pdfPage.drawImage(pngImage, {
-      x: pdfX,
-      y: pdfY,
-      width: (objWidth / canvas.originalWidth) * pageWidth,
-      height: (objHeight / canvas.originalHeight) * pageHeight,
-      rotate: window.PDFLib.degrees(0),
-    });
-  }
-}
 
 function triggerPdfDownload(bytes, filename) {
   const blob = new Blob([bytes], { type: 'application/pdf' });
@@ -456,12 +410,6 @@ export async function exportSelectedPages(originalFile, exportMode = 'selected')
     const { PDFDocument } = window.PDFLib;
 
     // Load PDF with PDFLib (pdfDoc from state is PDF.js PDFDocumentProxy)
-    const originalPdfBytes = getState().originalPdfBytes;
-    if (!originalPdfBytes) {
-      window.Toast.warning('文件数据不存在');
-      window.Loading.hide();
-      return false;
-   }
     const pdfLibDoc = await PDFDocument.load(originalPdfBytes);
 
     if (exportMode === 'split') {

@@ -61,64 +61,10 @@ export function generateSafeExportFilename(
 }
 
 /**
- * 设置 Content Security Policy
- * 静态页面需要在 HTML 里预先声明 CSP。
- * 运行时再插入 meta 不会可靠生效，还会在控制台产生警告。
- */
-export function setContentSecurityPolicy() {
-  return document.querySelector('meta[http-equiv="Content-Security-Policy"]');
-}
-
-/**
- * XSS 防护：安全设置文本内容
- * @param {HTMLElement} element - 目标元素
- * @param {string} text - 文本内容
- */
-export function setTextContent(element, text) {
-  if (element && text) {
-    element.textContent = text;
-  }
-}
-
-/**
- * XSS 防护：安全创建用户可见的文本节点
- * @param {string} text
- * @returns {Text}
- */
-export function createTextNode(text) {
-  return document.createTextNode(String(text));
-}
-
-/**
- * 验证 URL 是否安全（防止 javascript: 协议）
- * @param {string} url
- * @returns {boolean}
- */
-export function isSafeUrl(url) {
-  if (!url || typeof url !== 'string') return false;
-
-  const lower = url.toLowerCase().trim();
-  const dangerous = ['javascript:', 'data:text/html', 'vbscript:', 'blob:'];
-
-  return !dangerous.some(prefix => lower.startsWith(prefix));
-}
-
-/**
- * 防止点击劫持：确保页面不被嵌套在 iframe 中
- */
-export function preventClickjacking() {
-  if (window.self !== window.top) {
-    window.top.location = window.self.location;
-  }
-}
-
-/**
- * 初始化所有安全措施
+ * 初始化安全措施
+ * CSP 已在 HTML meta 标签中声明，无需运行时设置
  */
 export function initSecurity() {
-  // 设置 CSP
-  setContentSecurityPolicy();
-
-  // 防止点击劫持
-  preventClickjacking();
+  // CSP 通过 <meta http-equiv="Content-Security-Policy"> 静态声明
+  // frame-ancestors 通过服务器 X-Frame-Options 或 CSP 控制
 }

@@ -224,12 +224,8 @@ export async function handlePdfFile(
       createThumbnailList(pdfDoc.numPages);
       refreshVirtualScroller();
 
-      if (typeof window.showPage === 'function') {
-        await window.showPage(1, false);
-        onPagesRendered(1);
-      } else {
-        await showPage(1, onPagesRendered);
-      }
+      await window.showPage(1, false);
+      onPagesRendered(1);
     } else {
       await renderAllPages(onPagesRendered);
     }
@@ -313,12 +309,7 @@ function createThumbnailItem(pageNum) {
       return;
     }
 
-    if (typeof window.showPage === 'function') {
-      window.showPage(pageNum);
-      return;
-    }
-
-    showPage(pageNum);
+    window.showPage(pageNum);
   });
 
   return thumbItem;
@@ -547,81 +538,8 @@ async function renderAllPages(onPagesRendered) {
   initializeThumbnailDragSort(thumbnailContainer);
   scheduleVisibleThumbnailRender();
 
-  if (typeof window.showPage === 'function') {
-    await window.showPage(1, false);
-    if (onPagesRendered) onPagesRendered(1);
-    return;
-  }
-
-  await showPage(1, onPagesRendered);
-}
-
-/**
- * 显示指定页面
- * @param {number} pageNum
- * @param {Function} [onPagesRendered]
- */
-export async function showPage(pageNum, onPagesRendered) {
-  if (!getPdfDoc()) return;
-
-  setState({ currentActivePage: pageNum });
-
-  document.querySelectorAll('.canvas-wrapper').forEach((div) => {
-    div.style.display = 'none';
-  });
-
-  document.querySelectorAll('.thumbnail-item').forEach((item) => {
-    item.classList.remove('active');
-  });
-
-  const activeThumb = document.querySelector(
-    `.thumbnail-item[data-page-number="${pageNum}"]`
-  );
-  if (activeThumb) activeThumb.classList.add('active');
-
-  await renderThumbnailForPage(pageNum);
-
-  const wrapper = document.getElementById(`page-wrapper-${pageNum}`);
-  if (wrapper) {
-    wrapper.style.display = 'block';
-  }
-
-  const canvasModule = await import('./canvas-manager.js');
-  await canvasModule.initializeFabricCanvasForPage(pageNum, false);
-
-  const zoomModule = await import('./canvas-manager.js');
-  zoomModule.applyZoom();
-
-  updatePageNavigator();
-
-  if (onPagesRendered) {
-    onPagesRendered(pageNum);
-  }
-}
-
-/**
- * 更新页面导航器显示
- */
-function updatePageNavigator() {
-  const pageIndicator = document.getElementById('page-indicator');
-  const pageSelector = document.getElementById('page-selector');
-
-  if (!pageIndicator || !pageSelector) return;
-
-  const currentPage = getState().currentActivePage;
-  const totalPages = getTotalPages();
-
-  pageIndicator.textContent = `第 ${currentPage} / ${totalPages} 页`;
-
-  pageSelector.innerHTML = '';
-  for (let i = 1; i <= totalPages; i++) {
-    const option = document.createElement('option');
-    option.value = i;
-    option.textContent = `第 ${i} 页`;
-    pageSelector.appendChild(option);
-  }
-
-  pageSelector.value = currentPage;
+  await window.showPage(1, false);
+  if (onPagesRendered) onPagesRendered(1);
 }
 
 /**

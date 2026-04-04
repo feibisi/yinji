@@ -3,9 +3,8 @@
  * Handles multiple PDF files processing
  */
 
+import { getState } from './state.js';
 import { dataUrlToUint8Array } from '../utils/data-url.js';
-
-const { getState } = window.AppState;
 
 // ==================== State ====================
 
@@ -110,12 +109,12 @@ async function processBatchFiles() {
   const { sealImageElement } = getState();
 
   if (!sealImageElement || !sealImageElement.src) {
-    window.Toast?.warning('批量处理前，先在“编辑”里选择印章图片。');
+    window.Toast?.warning('先去「编辑」选好印章图片，再开始批量处理。');
     return;
   }
 
   if (batchProcessing) {
-    window.Toast?.warning('批量处理还在进行，请等当前队列完成。');
+    window.Toast?.warning('批量处理还在跑，等跑完再操作。');
     return;
   }
 
@@ -191,7 +190,7 @@ async function processBatchFiles() {
  * @param {Object} fileItem - File item object
  */
 async function processSingleBatchFile(fileItem) {
-  return new Promise(async (resolve, reject) => {
+  return new Promise((resolve, reject) => {
     const reader = new FileReader();
 
     reader.onload = async (e) => {

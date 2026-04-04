@@ -7,6 +7,46 @@ import { dataUrlToUint8Array } from '../utils/data-url.js';
  * 负责将带有印章的文件导出并保存
  */
 
+/**
+ * 将 Fabric canvas 上的对象嵌入到 PDF 页面
+ * @param {PDFDocument} pdfDoc - pdf-lib PDFDocument 实例
+ * @param {PDFPage} pdfPage - 目标 PDF 页面
+ * @param {fabric.Canvas} canvas - Fabric canvas 实例
+ */
+export async function drawCanvasObjectsToPdfPage(pdfDoc, pdfPage, canvas) {
+  if (!canvas) return;
+
+  const { width: pageWidth, height: pageHeight } = pdfPage.getSize();
+  const objects = canvas.getObjects().filter((obj) => !obj.isBackgroundImage);
+
+  for (const obj of objects) {
+    const multiplier = 2;
+    const imgDataUrl = obj.toDataURL({ format: 'png', multiplier });
+    const pngImageBytes = dataUrlToUint8Array(imgDataUrl);
+    const pngImage = await pdfDoc.embedPng(pngImageBytes);
+
+    const objWidth = obj.getScaledWidth();
+    const objHeight = obj.getScaledHeight();
+    let objLeft = obj.left;
+    let objTop = obj.top;
+
+    if (obj.originX === 'center') objLeft -= objWidth / 2;
+    if (obj.originY === 'center') objTop -= objHeight / 2;
+
+    const pdfX = (objLeft / canvas.originalWidth) * pageWidth;
+    const pdfY =
+      pageHeight - ((objTop + objHeight) / canvas.originalHeight) * pageHeight;
+
+    pdfPage.drawImage(pngImage, {
+      x: pdfX,
+      y: pdfY,
+      width: (objWidth / canvas.originalWidth) * pageWidth,
+      height: (objHeight / canvas.originalHeight) * pageHeight,
+      rotate: window.PDFLib.degrees(0),
+    });
+  }
+}
+
 async function buildStampedPdfBytes({
   onProgress = () => {},
 } = {}) {
@@ -16,51 +56,14 @@ async function buildStampedPdfBytes({
     throw new Error('请先上传文件！');
   }
 
-  const { PDFDocument, degrees } = window.PDFLib;
+  const { PDFDocument } = window.PDFLib;
   const pdfDoc = await PDFDocument.load(originalPdfBytes);
   const pages = pdfDoc.getPages();
   const fabricCanvases = getState().fabricCanvases;
 
   for (let i = 0; i < pages.length; i++) {
-    const canvas = fabricCanvases[i];
     onProgress(i + 1, pages.length);
-
-    if (!canvas) {
-      continue;
-    }
-
-    const page = pages[i];
-    const { width: pageWidth, height: pageHeight } = page.getSize();
-
-    const objects = canvas.getObjects().filter((obj) => !obj.isBackgroundImage);
-
-    for (const obj of objects) {
-      const multiplier = 2;
-
-      const imgDataUrl = obj.toDataURL({ format: 'png', multiplier });
-      const pngImageBytes = dataUrlToUint8Array(imgDataUrl);
-      const pngImage = await pdfDoc.embedPng(pngImageBytes);
-
-      const objWidth = obj.getScaledWidth();
-      const objHeight = obj.getScaledHeight();
-      let objLeft = obj.left;
-      let objTop = obj.top;
-
-      if (obj.originX === 'center') objLeft -= objWidth / 2;
-      if (obj.originY === 'center') objTop -= objHeight / 2;
-
-      const pdfX = (objLeft / canvas.originalWidth) * pageWidth;
-      const pdfY =
-        pageHeight - ((objTop + objHeight) / canvas.originalHeight) * pageHeight;
-
-      page.drawImage(pngImage, {
-        x: pdfX,
-        y: pdfY,
-        width: (objWidth / canvas.originalWidth) * pageWidth,
-        height: (objHeight / canvas.originalHeight) * pageHeight,
-        rotate: degrees(0),
-      });
-    }
+    await drawCanvasObjectsToPdfPage(pdfDoc, pages[i], fabricCanvases[i]);
   }
 
   return pdfDoc.save();
@@ -75,7 +78,7 @@ export async function exportPDF(pdfFile) {
   const sourcePdfFile = pdfFile || getState().currentPdfFile;
 
   if (!getState().originalPdfBytes) {
-    window.Toast.warning('请先上传文件！');
+    window.Toast.warning('还没打开文件，先选一个。');
     return;
   }
 
@@ -117,12 +120,12 @@ export async function exportCurrentPageAsImage(sourceFile) {
   const { currentSourceKind } = getState();
 
   if (currentSourceKind !== 'image') {
-    window.Toast.warning('当前文件不是图片来源。');
+    window.Toast.warning('这个文件不是图片来源，用不了这个功能。');
     return;
   }
 
   if (!getState().originalPdfBytes) {
-    window.Toast.warning('请先上传文件！');
+    window.Toast.warning('还没打开文件，先选一个。');
     return;
   }
 

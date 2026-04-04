@@ -1,6 +1,7 @@
 import { getState, setState } from '../core/state.js';
 import { getCurrentPageCanvas } from './canvas-manager.js';
 import { getCurrentActivePage } from './canvas-manager.js';
+import { loadFabricImage } from '../utils/fabric-helpers.js';
 
 /**
  * 印章管理模块
@@ -77,13 +78,7 @@ export function getSealBrightness() {
  * @param {string} src
  * @returns {Promise<fabric.Image>}
  */
-async function loadFabricImage(src) {
-  try {
-    return await fabric.Image.fromURL(src, { crossOrigin: 'anonymous' });
-  } catch (error) {
-    return await fabric.Image.fromURL(src);
-  }
-}
+
 
 /**
  * 获取旋转和亮度调整后的图片数据URL
@@ -176,7 +171,7 @@ export function addNormalSeal() {
     sealImageElement.naturalWidth === 0 ||
     !pdfDoc
   ) {
-    window.Toast.warning('请先选择一个有效的印章图片！');
+    window.Toast.warning('还没选印章图片，先选一个。');
     return;
   }
 
@@ -223,7 +218,7 @@ export function addNormalSeal() {
       );
     } catch (error) {
       console.error('创建印章图片失败:', error);
-      window.Toast.error('创建印章失败，请重试。');
+      window.Toast.error('印章没创建成功，再试一次。');
     }
   };
 
@@ -247,7 +242,7 @@ export async function addStraddleSeal() {
     sealImageElement.naturalWidth === 0 ||
     !pdfDoc
   ) {
-    window.Toast.warning('请先选择一个有效的印章图片！');
+    window.Toast.warning('还没选印章图片，先选一个。');
     return;
   }
 
@@ -346,7 +341,7 @@ export async function addStraddleSeal() {
       }
 
       if (entries.length === 0) {
-        window.Toast.error('骑缝章创建失败，请重试。');
+        window.Toast.error('骑缝章没做成，再试一次。');
         return;
       }
 
@@ -399,7 +394,7 @@ export async function deleteSelectedObject() {
       window.Toast.success(`已从第 ${getCurrentActivePage()} 页删掉选中的印章。`);
     }
   } else {
-    window.Toast.warning('请先选择要删除的印章');
+    window.Toast.warning('先点一下要删的印章。');
   }
 }
 
@@ -412,7 +407,7 @@ export function lockObject() {
 
   const activeObject = canvas.getActiveObject();
   if (!activeObject) {
-    window.Toast.warning('请先选择要锁定的印章');
+    window.Toast.warning('先点一下要锁定的印章。');
     return false;
   }
 
@@ -438,7 +433,7 @@ export function lockObject() {
   window.History.executeCommand(command);
   canvas.setActiveObject(activeObject);
   canvas.renderAll();
-  window.Toast.success('当前印章已锁定，拖动和缩放都不会再改动。');
+  window.Toast.success('印章已锁定，不会被误动。');
   return true;
 }
 
@@ -451,7 +446,7 @@ export function unlockObject() {
 
   const activeObject = canvas.getActiveObject();
   if (!activeObject) {
-    window.Toast.warning('请先选择要解锁的印章');
+    window.Toast.warning('先点一下要解锁的印章。');
     return false;
   }
 
@@ -495,7 +490,7 @@ export function unlockObject() {
   window.History.executeCommand(command);
   canvas.setActiveObject(activeObject);
   canvas.renderAll();
-  window.Toast.success('当前印章已解锁，现在可以继续拖动和缩放。');
+  window.Toast.success('印章已解锁，可以继续调整。');
   return true;
 }
 
@@ -508,7 +503,7 @@ export function toggleLockSelected() {
 
   const activeObject = canvas.getActiveObject();
   if (!activeObject) {
-    window.Toast.warning('请先选择要操作的印章');
+    window.Toast.warning('先点一下要操作的印章。');
     return false;
   }
 

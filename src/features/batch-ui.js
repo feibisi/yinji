@@ -77,7 +77,7 @@ function setupBatchOperations(onToolbarStatusChange) {
     batchAddSealBtn.addEventListener('click', async () => {
       const sealImageElement = getState().sealImageElement;
       if (!sealImageElement || !sealImageElement.src) {
-        window.Toast.warning('请先选择印章图片');
+        window.Toast.warning('还没选印章图片。');
         return;
       }
 
@@ -124,7 +124,7 @@ function setupBatchOperations(onToolbarStatusChange) {
     const { currentPdfFile, selectedPages, totalPages, currentSourceKind } = getState();
 
     if (!currentPdfFile) {
-      exportHint.textContent = '先加载文件，再选择整份下载或按页面下载。';
+      exportHint.textContent = '先打开文件，再选择整份下载或按页面下载。';
       return;
     }
 

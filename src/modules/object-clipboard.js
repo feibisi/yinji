@@ -1,5 +1,6 @@
 import { getCurrentPageCanvas } from './canvas-manager.js';
 import { getCurrentActivePage } from './canvas-manager.js';
+import { loadFabricImage } from '../utils/fabric-helpers.js';
 
 /**
  * 对象剪贴板模块
@@ -12,18 +13,7 @@ const _clipboard = {
   sourcePage: null,
 };
 
-/**
- * 兼容 Fabric 6 的图片加载
- * @param {string} src
- * @returns {Promise<fabric.Image>}
- */
-async function loadFabricImage(src) {
-  try {
-    return await fabric.Image.fromURL(src, { crossOrigin: 'anonymous' });
-  } catch (error) {
-    return await fabric.Image.fromURL(src);
-  }
-}
+
 
 /**
  * 序列化 fabric 对象为纯 JSON（不含引用）
@@ -112,12 +102,12 @@ export function copySelected() {
 
   // 不复制锁定的对象
   if (activeObject.isLocked) {
-    window.Toast?.warning('锁定的印章不可复制');
+    window.Toast?.warning('锁定的印章不能复制。');
     return false;
   }
 
   if (activeObject.straddleGroup) {
-    window.Toast?.warning('骑缝章整体不支持复制，请单独复制');
+    window.Toast?.warning('骑缝章不能整组复制，一个一个来。');
     return false;
   }
 

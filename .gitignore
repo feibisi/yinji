@@ -1,0 +1,23 @@
+# 临时调试文件
+tmp-*.html
+test-*.pdf
+
+# 截图
+ui-*.png
+
+# 编辑器
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# 系统
+.DS_Store
+Thumbs.db
+
+# 依赖
+node_modules/
+
+# 日志
+*.log

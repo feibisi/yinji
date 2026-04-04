@@ -113,154 +113,7 @@ function validateImportedSettings(rawSettings) {
   return validatedSettings;
 }
 
-// ==================== Dialog Functions ====================
-
-/**
- * Show custom dialog modal
- * @param {Object} options - Dialog options
- * @param {string} options.title - Dialog title
- * @param {string} [options.message] - Dialog message
- * @param {string} [options.confirmText] - Confirm button text
- * @param {string} [options.cancelText] - Cancel button text
- * @param {boolean} [options.showInput] - Whether to show input box
- * @param {string} [options.defaultValue] - Input default value
- * @param {string} [options.placeholder] - Input placeholder
- * @param {boolean} [options.danger] - Whether confirm button is danger style
- * @returns {Promise<boolean|string|null>} Dialog result
- */
-function showDialogModal({
-  title,
-  message = '',
-  confirmText = '确定',
-  cancelText = '取消',
-  showInput = false,
-  defaultValue = '',
-  placeholder = '',
-  danger = false,
-}) {
-  return new Promise((resolve) => {
-    const overlay = document.createElement('div');
-    overlay.className = 'app-dialog-overlay';
-    overlay.setAttribute('role', 'dialog');
-    overlay.setAttribute('aria-modal', 'true');
-
-    const content = document.createElement('div');
-    content.className = 'app-dialog-content';
-
-    const titleElement = document.createElement('h3');
-    titleElement.textContent = title;
-    titleElement.className = 'app-modal-title';
-
-    const body = document.createElement('div');
-    body.className = 'app-modal-body app-dialog-body';
-    body.appendChild(titleElement);
-
-    if (message) {
-      const messageElement = document.createElement('p');
-      messageElement.textContent = message;
-      messageElement.className = 'app-dialog-message';
-      body.appendChild(messageElement);
-    }
-
-    let inputElement = null;
-    if (showInput) {
-      inputElement = document.createElement('input');
-      inputElement.type = 'text';
-      inputElement.value = defaultValue;
-      inputElement.placeholder = placeholder;
-      inputElement.className = 'app-dialog-input';
-      body.appendChild(inputElement);
-    }
-
-    const actionRow = document.createElement('div');
-    actionRow.className = 'app-dialog-actions';
-
-    const cancelButton = document.createElement('button');
-    cancelButton.textContent = cancelText;
-    cancelButton.type = 'button';
-    cancelButton.className = 'btn btn-secondary';
-
-    const confirmButton = document.createElement('button');
-    confirmButton.textContent = confirmText;
-    confirmButton.type = 'button';
-    confirmButton.className = danger ? 'btn btn-danger' : 'btn btn-primary';
-
-    actionRow.appendChild(cancelButton);
-    actionRow.appendChild(confirmButton);
-    body.appendChild(actionRow);
-    content.appendChild(body);
-    overlay.appendChild(content);
-
-    const closeDialog = (result) => {
-      document.removeEventListener('keydown', handleKeydown);
-      overlay.remove();
-      resolve(result);
-    };
-
-    const confirmDialog = () => {
-      if (showInput) {
-        closeDialog(inputElement ? inputElement.value : '');
-        return;
-      }
-      closeDialog(true);
-    };
-
-    const cancelDialog = () => {
-      if (showInput) {
-        closeDialog(null);
-        return;
-      }
-      closeDialog(false);
-    };
-
-    const handleKeydown = (event) => {
-      if (event.key === 'Escape') {
-        cancelDialog();
-      }
-
-      if (event.key === 'Enter') {
-        confirmDialog();
-      }
-    };
-
-    cancelButton.addEventListener('click', cancelDialog);
-    confirmButton.addEventListener('click', confirmDialog);
-    overlay.addEventListener('click', (event) => {
-      if (event.target === overlay) {
-        cancelDialog();
-      }
-    });
-    document.addEventListener('keydown', handleKeydown);
-
-    document.body.appendChild(overlay);
-
-    if (inputElement) {
-      inputElement.focus();
-      inputElement.select();
-      return;
-    }
-
-    confirmButton.focus();
-  });
-}
-
-/**
- * Show custom confirm dialog
- * @param {Object} options - Dialog options
- * @returns {Promise<boolean>} Confirm result
- */
-async function confirmAction(options) {
-  return showDialogModal(options);
-}
-
-/**
- * Show custom input dialog
- * @param {Object} options - Dialog options
- * @returns {Promise<string|null>} Input result
- */
-async function promptInput(options) {
-  return showDialogModal({ ...options, showInput: true });
-}
+import { confirmAction, promptInput } from '../ui/dialog.js';
 
 // ==================== Storage Functions ====================
 
@@ -408,7 +261,7 @@ function showSettingsModal() {
       <div class="settings-modal-header">
         <div class="app-modal-header-copy">
           <h2 class="app-modal-title">设置</h2>
-          <p class="app-modal-subtitle">调整默认印章参数和本地偏好。这里只改默认值，不会覆盖已经放到页面上的印章。</p>
+          <p class="app-modal-subtitle">调整默认参数和本地偏好。这里只改默认值，已经放到页面上的印章不受影响。</p>
         </div>
         <button id="close-settings-icon-btn" type="button" class="app-modal-close-btn" aria-label="关闭设置">&times;</button>
       </div>
@@ -422,7 +275,7 @@ function showSettingsModal() {
             <span class="settings-field-value" id="seal-size-value"></span>
           </div>
           <input type="range" id="setting-seal-size" min="0.1" max="0.5" step="0.05">
-          <p class="settings-field-hint">按页面宽度比例决定新印章的初始大小。</p>
+          <p class="settings-field-hint">新印章放上去时，按这个比例决定初始大小。</p>
         </div>
 
         <div class="settings-field">
@@ -431,7 +284,7 @@ function showSettingsModal() {
             <span class="settings-field-value" id="rotation-value"></span>
           </div>
           <input type="range" id="setting-rotation" min="-180" max="180" step="1">
-          <p class="settings-field-hint">新印章放到页面时，会先按这个角度旋转。</p>
+          <p class="settings-field-hint">新印章放到页面时会先按这个角度转。</p>
         </div>
 
         <div class="settings-field">
@@ -440,14 +293,14 @@ function showSettingsModal() {
             <span class="settings-field-value" id="opacity-value"></span>
           </div>
           <input type="range" id="setting-opacity" min="0.1" max="1" step="0.1">
-          <p class="settings-field-hint">降低透明度后，更适合叠在已有内容上。</p>
+          <p class="settings-field-hint">调低后更适合盖在有内容的地方。</p>
         </div>
 
         <label class="settings-field settings-checkbox-field">
           <input type="checkbox" id="setting-auto-save">
           <span class="settings-checkbox-copy">
             <span class="settings-checkbox-title">自动保存设置</span>
-            <span class="settings-checkbox-hint">修改后立刻写入本地浏览器，不必再手动保存。</span>
+            <span class="settings-checkbox-hint">修改后立刻写入本地浏览器，不用再手动保存。</span>
           </span>
         </label>
       </div>

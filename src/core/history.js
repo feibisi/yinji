@@ -3,7 +3,7 @@
  * Implements undo/redo functionality using Command pattern
  */
 
-const { getState } = window.AppState;
+import { getState } from './state.js';
 
 // ==================== History Stack ====================
 

@@ -108,7 +108,7 @@ export async function openSignatureModal() {
     (await initializeFabricCanvasForPage(currentPage));
 
   if (!canvas) {
-    window.Toast.warning('当前页面还没准备好，请稍后再试。');
+    window.Toast.warning('当前页面还没准备好，稍等一下。');
     return;
   }
 
@@ -129,7 +129,7 @@ export function closeSignatureModal() {
 
 async function addSignatureToPage() {
   if (signaturePad.isEmpty()) {
-    window.Toast.warning('请先书写签名！');
+    window.Toast.warning('签名还是空的，先写几笔吧。');
     return;
   }
 
@@ -140,7 +140,7 @@ async function addSignatureToPage() {
     (await initializeFabricCanvasForPage(currentPage));
 
   if (!canvas) {
-    window.Toast.warning('当前页面还没准备好，请稍后再试。');
+    window.Toast.warning('当前页面还没准备好，稍等一下。');
     return;
   }
 
@@ -168,7 +168,7 @@ async function addSignatureToPage() {
     window.Toast.success(`手写签名已插入第 ${currentPage} 页。`);
   } catch (error) {
     console.error('添加签名失败:', error);
-    window.Toast.error('签名添加失败，请重试。');
+    window.Toast.error('签名没放上去，再试一次。');
   }
 }
 

@@ -3,7 +3,7 @@
  * Manages saved seals using localStorage
  */
 
-const { setState } = window.AppState;
+import { setState } from './state.js';
 
 // ==================== Constants ====================
 
@@ -53,7 +53,7 @@ function addSealToLibrary(name, imageData, settings = {}) {
   // Check if name already exists (offer overwrite) - MUST check BEFORE full check
   const existingIndex = seals.findIndex(seal => seal.name === name);
   if (existingIndex !== -1) {
-    window.Toast?.warning('印章名称已存在，将覆盖旧版本');
+    window.Toast?.warning('同名印章已存在，会覆盖旧的。');
     seals.splice(existingIndex, 1);
   }
 
@@ -90,7 +90,7 @@ function deleteSealFromLibrary(sealId) {
   const sealIndex = seals.findIndex(s => s.id === sealId);
 
   if (sealIndex === -1) {
-    window.Toast?.error('印章不存在');
+    window.Toast?.error('这个印章不存在。');
     return false;
   }
 

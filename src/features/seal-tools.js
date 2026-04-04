@@ -16,15 +16,15 @@ export async function saveSealToLibrary() {
     !sealImageElement.src ||
     sealImageElement.naturalWidth === 0
   ) {
-    window.Toast.warning('请先选择一个有效的印章图片！');
+    window.Toast.warning('还没选印章图片。');
     return;
   }
 
   const sealName = await window.Settings.promptInput({
     title: '保存到印章库',
-    message: '请输入印章名称：',
+    message: '给印章起个名字：',
     defaultValue: '印章' + (window.SealLibrary.getSavedSeals().length + 1),
-    placeholder: '请输入印章名称',
+    placeholder: '印章名称',
     confirmText: '保存',
     cancelText: '取消',
   });
@@ -61,7 +61,7 @@ export function removeWhiteBackground(sealPreviewImg) {
     !sealImageElement.src ||
     sealImageElement.naturalWidth === 0
   ) {
-    window.Toast.warning('请先选择一个有效的印章图片！');
+    window.Toast.warning('还没选印章图片。');
     return;
   }
 
@@ -97,7 +97,7 @@ export function removeWhiteBackground(sealPreviewImg) {
       sealPreviewImg.src = newSrc;
     }
 
-    window.Toast.success('已成功去除白色背景！');
+    window.Toast.success('白色背景已去掉。');
   };
   img.onerror = () => {
     window.Toast.error('处理图片时发生错误。');
