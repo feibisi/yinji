@@ -81,6 +81,135 @@ class DeleteSealCommand extends Command {
 }
 
 /**
+ * Add multiple seals command
+ */
+class AddSealsCommand extends Command {
+  constructor(entries) {
+    super();
+    this.entries = entries;
+  }
+
+  execute() {
+    const touchedCanvases = new Set();
+    let lastActive = null;
+
+    this.entries.forEach(({ pageNum, sealObject }) => {
+      const canvas = getState().fabricCanvases[pageNum - 1];
+      if (!canvas) return;
+
+      if (!canvas.getObjects().includes(sealObject)) {
+        canvas.add(sealObject);
+      }
+
+      touchedCanvases.add(canvas);
+      lastActive = { canvas, sealObject };
+    });
+
+    if (lastActive) {
+      lastActive.canvas.setActiveObject(lastActive.sealObject);
+    }
+
+    touchedCanvases.forEach((canvas) => canvas.renderAll());
+  }
+
+  undo() {
+    const touchedCanvases = new Set();
+
+    this.entries.forEach(({ pageNum, sealObject }) => {
+      const canvas = getState().fabricCanvases[pageNum - 1];
+      if (!canvas) return;
+
+      if (canvas.getObjects().includes(sealObject)) {
+        canvas.remove(sealObject);
+      }
+
+      touchedCanvases.add(canvas);
+    });
+
+    touchedCanvases.forEach((canvas) => canvas.renderAll());
+  }
+}
+
+/**
+ * Delete multiple seals command
+ */
+class DeleteSealsCommand extends Command {
+  constructor(entries) {
+    super();
+    this.entries = entries;
+  }
+
+  execute() {
+    const touchedCanvases = new Set();
+
+    this.entries.forEach(({ pageNum, sealObject }) => {
+      const canvas = getState().fabricCanvases[pageNum - 1];
+      if (!canvas) return;
+
+      if (canvas.getObjects().includes(sealObject)) {
+        canvas.remove(sealObject);
+      }
+
+      touchedCanvases.add(canvas);
+    });
+
+    touchedCanvases.forEach((canvas) => canvas.renderAll());
+  }
+
+  undo() {
+    const touchedCanvases = new Set();
+    let lastActive = null;
+
+    this.entries.forEach(({ pageNum, sealObject }) => {
+      const canvas = getState().fabricCanvases[pageNum - 1];
+      if (!canvas) return;
+
+      if (!canvas.getObjects().includes(sealObject)) {
+        canvas.add(sealObject);
+      }
+
+      touchedCanvases.add(canvas);
+      lastActive = { canvas, sealObject };
+    });
+
+    if (lastActive) {
+      lastActive.canvas.setActiveObject(lastActive.sealObject);
+    }
+
+    touchedCanvases.forEach((canvas) => canvas.renderAll());
+  }
+}
+
+function applyObjectState(sealObject, state) {
+  const nextState = {};
+
+  [
+    'left',
+    'top',
+    'scaleX',
+    'scaleY',
+    'angle',
+    'lockMovementX',
+    'lockMovementY',
+    'lockScalingX',
+    'lockScalingY',
+    'lockRotation',
+    'isLocked',
+    'borderColor',
+    'cornerColor',
+    'cornerSize',
+    'opacity',
+  ].forEach((key) => {
+    if (key in state) {
+      nextState[key] = state[key];
+    }
+  });
+
+  sealObject.set(nextState);
+  sealObject.setCoords();
+}
+
+/**
  * Modify Seal Command (move, resize, rotate)
  */
 class ModifySealCommand extends Command {
@@ -101,17 +230,50 @@ class ModifySealCommand extends Command {
   }
 
   applyState(state) {
-    this.sealObject.set({
-      left: state.left,
-      top: state.top,
-      scaleX: state.scaleX,
-      scaleY: state.scaleY,
-      angle: state.angle,
-    });
     const canvas = getState().fabricCanvases[this.pageNum - 1];
     if (canvas) {
+      applyObjectState(this.sealObject, state);
+      canvas.setActiveObject(this.sealObject);
       canvas.renderAll();
     }
+  }
+}
+
+/**
+ * Modify multiple seals command
+ */
+class ModifySealsCommand extends Command {
+  constructor(entries) {
+    super();
+    this.entries = entries;
+  }
+
+  execute() {
+    this.applyEntries('newState');
+  }
+
+  undo() {
+    this.applyEntries('oldState');
+  }
+
+  applyEntries(stateKey) {
+    const touchedCanvases = new Set();
+    let lastActive = null;
+
+    this.entries.forEach(({ pageNum, sealObject, [stateKey]: state }) => {
+      const canvas = getState().fabricCanvases[pageNum - 1];
+      if (!canvas || !state) return;
+
+      applyObjectState(sealObject, state);
+      touchedCanvases.add(canvas);
+      lastActive = { canvas, sealObject };
+    });
+
+    if (lastActive) {
+      lastActive.canvas.setActiveObject(lastActive.sealObject);
+    }
+
+    touchedCanvases.forEach((canvas) => canvas.renderAll());
   }
 }
 
@@ -207,6 +369,16 @@ function getObjectState(obj) {
     scaleX: obj.scaleX,
     scaleY: obj.scaleY,
     angle: obj.angle,
+    lockMovementX: obj.lockMovementX,
+    lockMovementY: obj.lockMovementY,
+    lockScalingX: obj.lockScalingX,
+    lockScalingY: obj.lockScalingY,
+    lockRotation: obj.lockRotation,
+    isLocked: obj.isLocked,
+    borderColor: obj.borderColor,
+    cornerColor: obj.cornerColor,
+    cornerSize: obj.cornerSize,
+    opacity: obj.opacity,
   };
 }
 
@@ -220,7 +392,10 @@ window.History = {
   getObjectState,
   AddSealCommand,
   DeleteSealCommand,
+  AddSealsCommand,
+  DeleteSealsCommand,
   ModifySealCommand,
+  ModifySealsCommand,
 };
 
 // Initialize button states

@@ -4,7 +4,7 @@
  */
 
 import { getState, setState } from '../core/state.js';
-import { togglePageSelection, selectPageRange } from './batch-operations.js';
+import { handleThumbnailInteraction } from './batch-operations.js';
 
 const SCROLL_BUFFER = 2; // 额外渲染前后各 2 页
 const THUMBNAIL_HEIGHT = 120; // 缩略图高度（含间距）
@@ -99,6 +99,7 @@ function updateVisibleRange(state) {
 function renderVisibleThumbnails(state) {
   const { container, visibleRange, renderedPages } = state;
   const totalPages = getState().totalPages;
+  let shouldRerender = false;
 
   if (!totalPages) return;
 
@@ -118,6 +119,11 @@ function renderVisibleThumbnails(state) {
     });
 
     container.appendChild(itemsContainer);
+  }
+
+  const emptyState = container.querySelector('.empty-state');
+  if (emptyState) {
+    emptyState.style.display = 'none';
   }
 
   // 计算每页的偏移量
@@ -144,10 +150,23 @@ function renderVisibleThumbnails(state) {
 
   // 渲染可见的缩略图
   for (let pageNum = visibleRange.start; pageNum <= visibleRange.end; pageNum++) {
-    if (renderedPages.has(pageNum)) continue;
+    const offsetY = offsets[pageNum - 1];
+
+    if (renderedPages.has(pageNum)) {
+      const existingThumb = itemsContainer.querySelector(
+        `[data-page-number="${pageNum}"]`
+      );
+      if (existingThumb) {
+        existingThumb.style.position = 'absolute';
+        existingThumb.style.top = `${offsetY}px`;
+        existingThumb.style.left = '0';
+        existingThumb.style.width = '100%';
+        syncThumbnailVisualState(existingThumb, pageNum);
+      }
+      continue;
+    }
 
     const thumb = createThumbnailElement(pageNum);
-    const offsetY = offsets[pageNum - 1];
 
     thumb.style.position = 'absolute';
     thumb.style.top = `${offsetY}px`;
@@ -156,10 +175,25 @@ function renderVisibleThumbnails(state) {
 
     itemsContainer.appendChild(thumb);
     renderedPages.add(pageNum);
+    syncThumbnailVisualState(thumb, pageNum);
+    shouldRerender =
+      updatePageHeightFromElement(pageNum, thumb, state) || shouldRerender;
 
     // 异步加载缩略图
     loadThumbnailImage(pageNum, thumb, state);
   }
+
+  if (shouldRerender) {
+    requestAnimationFrame(() => renderVisibleThumbnails(state));
+  }
+}
+
+function syncThumbnailVisualState(thumb, pageNum) {
+  const selectedPages = getState().selectedPages;
+  const currentPage = getState().currentActivePage;
+
+  thumb.classList.toggle('selected', selectedPages.has(pageNum));
+  thumb.classList.toggle('active', currentPage === pageNum);
 }
 
 /**
@@ -185,19 +219,13 @@ function createThumbnailElement(pageNum) {
 
   // 点击事件
   div.addEventListener('click', (e) => {
-    if (e.ctrlKey || e.metaKey) {
-      // Ctrl+Click: 批量选择
-      e.preventDefault();
-      togglePageSelection(pageNum);
-    } else if (e.shiftKey) {
-      // Shift+Click: 范围选择
-      e.preventDefault();
-      selectPageRange(pageNum);
-    } else {
-      // 普通点击：切换页面
-      if (window.showPage) {
-        window.showPage(pageNum);
-      }
+    if (handleThumbnailInteraction(pageNum, e)) {
+      return;
+    }
+
+    if (window.showPage) {
+      e.stopPropagation();
+      window.showPage(pageNum);
     }
   });
 
@@ -229,23 +257,37 @@ async function loadThumbnailImage(pageNum, thumb, state) {
       viewport: viewport,
     }).promise;
 
-    // 缓存高度
-    state.pageHeights[pageNum - 1] = viewport.height + 20; // 含间距
-
-    // 更新位置（因为高度可能变化）
-    renderVisibleThumbnails(state);
-
-    // 触发选中状态更新
-    const selectedPages = getState().selectedPages;
-    if (selectedPages.has(pageNum)) {
-      thumb.classList.add('selected');
+    if (updatePageHeightFromElement(pageNum, thumb, state)) {
+      renderVisibleThumbnails(state);
     }
+
+    // 同步选中和当前页状态
+    syncThumbnailVisualState(thumb, pageNum);
 
     page.cleanup();
 
   } catch (error) {
     console.error(`加载缩略图 ${pageNum} 失败:`, error);
   }
+}
+
+function updatePageHeightFromElement(pageNum, thumb, state) {
+  const nextHeight = measureThumbnailHeight(thumb);
+  const currentHeight = state.pageHeights[pageNum - 1] || THUMBNAIL_HEIGHT;
+
+  if (Math.abs(nextHeight - currentHeight) <= 1) {
+    return false;
+  }
+
+  state.pageHeights[pageNum - 1] = nextHeight;
+  return true;
+}
+
+function measureThumbnailHeight(thumb) {
+  const rect = thumb.getBoundingClientRect();
+  const styles = window.getComputedStyle(thumb);
+  const marginBottom = parseFloat(styles.marginBottom) || 0;
+  return Math.ceil(rect.height + marginBottom);
 }
 
 /**

@@ -1,5 +1,5 @@
 import { getCurrentPageCanvas } from './canvas-manager.js';
-import { getCurrentActivePage } from '../core/state.js';
+import { getCurrentActivePage } from './canvas-manager.js';
 
 /**
  * 对象剪贴板模块
@@ -13,12 +13,25 @@ const _clipboard = {
 };
 
 /**
+ * 兼容 Fabric 6 的图片加载
+ * @param {string} src
+ * @returns {Promise<fabric.Image>}
+ */
+async function loadFabricImage(src) {
+  try {
+    return await fabric.Image.fromURL(src, { crossOrigin: 'anonymous' });
+  } catch (error) {
+    return await fabric.Image.fromURL(src);
+  }
+}
+
+/**
  * 序列化 fabric 对象为纯 JSON（不含引用）
  * @param {fabric.Object} obj
  * @returns {Object}
  */
 function _serializeObject(obj) {
-  return obj.toObject([
+  const json = obj.toObject([
     'type',
     'left',
     'top',
@@ -36,6 +49,13 @@ function _serializeObject(obj) {
     'isLocked',
     'src',
   ]);
+
+  if (!json.src) {
+    json.src =
+      typeof obj.getSrc === 'function' ? obj.getSrc() : obj.src || null;
+  }
+
+  return json;
 }
 
 /**
@@ -46,34 +66,35 @@ function _serializeObject(obj) {
  */
 async function _deserializeObject(json) {
   if (json.type === 'image' || json.src) {
-    return new Promise((resolve) => {
-      fabric.Image.fromURL(json.src, (img) => {
-        if (!img) return resolve(null);
-        // Apply serialized properties that fabric doesn't auto-restore
-        // (image props are mostly auto-restored)
-        img.set({
-          left: json.left,
-          top: json.top,
-          scaleX: json.scaleX,
-          scaleY: json.scaleY,
-          angle: json.angle,
-          opacity: json.opacity,
-          originX: 'center',
-          originY: 'center',
-          cornerSize: 10,
-          cornerStyle: 'circle',
-          cornerColor: '#007bff',
-          transparentCorners: false,
-          borderColor: '#007bff',
-          isLocked: json.isLocked || false,
-        });
-        if (json.flipX) img.set({ flipX: true });
-        if (json.flipY) img.set({ flipY: true });
-        resolve(img);
-      }, {
-        crossOrigin: 'anonymous',
+    try {
+      const img = await loadFabricImage(json.src);
+      if (!img) return null;
+
+      // Apply serialized properties that fabric doesn't auto-restore
+      // (image props are mostly auto-restored)
+      img.set({
+        left: json.left,
+        top: json.top,
+        scaleX: json.scaleX,
+        scaleY: json.scaleY,
+        angle: json.angle,
+        opacity: json.opacity,
+        originX: 'center',
+        originY: 'center',
+        cornerSize: 10,
+        cornerStyle: 'circle',
+        cornerColor: '#007bff',
+        transparentCorners: false,
+        borderColor: '#007bff',
+        isLocked: json.isLocked || false,
       });
-    });
+      if (json.flipX) img.set({ flipX: true });
+      if (json.flipY) img.set({ flipY: true });
+      return img;
+    } catch (error) {
+      console.error('粘贴对象反序列化失败:', error);
+      return null;
+    }
   }
   return null;
 }
@@ -119,7 +140,7 @@ export async function pasteClipboard() {
 
   const serialized = _clipboard.objects.map((obj) => _serializeObject(obj));
 
-  const pastedObjects = [];
+  const entries = [];
   for (const json of serialized) {
     // Offset pasted objects slightly
     json.left = (json.left || 0) + 20;
@@ -127,14 +148,16 @@ export async function pasteClipboard() {
 
     const newObj = await _deserializeObject(json);
     if (newObj) {
-      canvas.add(newObj);
-      canvas.setActiveObject(newObj);
-      pastedObjects.push(newObj);
+      entries.push({
+        pageNum: getCurrentActivePage(),
+        sealObject: newObj,
+      });
     }
   }
 
-  if (pastedObjects.length > 0) {
-    canvas.renderAll();
+  if (entries.length > 0) {
+    const command = new window.History.AddSealsCommand(entries);
+    window.History.executeCommand(command);
     window.Toast?.success('已粘贴');
     return true;
   }

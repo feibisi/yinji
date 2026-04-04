@@ -41,39 +41,32 @@ export function getBasename(filename) {
 
 /**
  * 生成安全的导出文件名
- * @param {File|null} originalFile - 原始 PDF 文件
+ * @param {File|null} originalFile - 原始文件
  * @param {string} suffix - 后缀（默认：_盖章版）
+ * @param {string} extension - 文件扩展名，不带点
  * @returns {string} 安全的完整文件名
  */
-export function generateSafeExportFilename(originalFile, suffix = '_盖章版') {
+export function generateSafeExportFilename(
+  originalFile,
+  suffix = '_盖章版',
+  extension = 'pdf'
+) {
+  const normalizedExtension = String(extension || 'pdf').replace(/^\./, '') || 'pdf';
+
   if (originalFile && originalFile.name) {
     const base = getBasename(originalFile.name);
-    return base + suffix + '.pdf';
+    return `${base}${suffix}.${normalizedExtension}`;
   }
-  return 'document' + suffix + '.pdf';
+  return `document${suffix}.${normalizedExtension}`;
 }
 
 /**
  * 设置 Content Security Policy
- * 在应用启动时调用，限制脚本/样式/图片来源
+ * 静态页面需要在 HTML 里预先声明 CSP。
+ * 运行时再插入 meta 不会可靠生效，还会在控制台产生警告。
  */
 export function setContentSecurityPolicy() {
-  // Meta CSP：限制所有资源加载来源
-  const cspMeta = document.createElement('meta');
-  cspMeta.httpEquiv = 'Content-Security-Policy';
-  cspMeta.content = [
-    "default-src 'self'",
-    "script-src 'self' https://cdnjs.cloudflare.com 'unsafe-inline'",
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
-    "font-src 'self' data:",
-    "connect-src 'self'",
-    "frame-ancestors 'none'",  // 禁止被 iframe 嵌套
-    "base-uri 'self'",
-    "form-action 'self'",
-  ].join('; ');
-
-  document.head.appendChild(cspMeta);
+  return document.querySelector('meta[http-equiv="Content-Security-Policy"]');
 }
 
 /**
@@ -128,6 +121,4 @@ export function initSecurity() {
 
   // 防止点击劫持
   preventClickjacking();
-
-  console.log('Security measures initialized');
 }

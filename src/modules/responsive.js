@@ -28,15 +28,14 @@ export function detectAndApplyResponsive() {
  */
 function applyMobileLayout(mobile) {
   const appContainer = document.getElementById('app');
-  const sidebar = document.querySelector('.sidebar');
   const toolbar = document.querySelector('.toolbar');
 
-  if (!appContainer || !sidebar || !toolbar) return;
+  if (!appContainer || !toolbar) return;
 
   if (mobile) {
-    // 移动端：隐藏侧边栏，紧凑工具栏
+    // 移动端：切到单列布局，避免侧栏收起后丢失预览入口
     appContainer.classList.add('mobile');
-    sidebar.classList.remove('sidebar-visible');
+    appContainer.classList.remove('sidebar-collapsed');
     toolbar.classList.add('toolbar-compact');
   } else {
     // 桌面端：恢复默认

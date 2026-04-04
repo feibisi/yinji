@@ -37,44 +37,47 @@
       <button class="btn" onclick="window.location.href='../'">返回应用</button>
     </div>
   </div>
-  <script src="../src/core/state.js"></script>
-  <script src="../src/utils/validators.js"></script>
-  <script src="./validators.test.js"></script>
-  <script src="./state.test.js"></script>
-  <script>
+  <script type="module">
+    import '../src/core/state.js';
+    import '../src/utils/validators.js';
+    import { runValidatorTests } from './validators.test.js';
+    import { runStateTests } from './state.test.js';
+
+    function renderSection(targetId, label, results) {
+      const total = results.passed + results.failed;
+      document.getElementById(targetId).textContent =
+        label + ': ' + results.passed + '/' + total + ' 通过';
+    }
+
+    function renderSummary(validatorResults, stateResults) {
+      const totalPassed = validatorResults.passed + stateResults.passed;
+      const totalFailed = validatorResults.failed + stateResults.failed;
+      const total = totalPassed + totalFailed;
+      const pct = total > 0 ? Math.round((totalPassed / total) * 100) : 0;
+
+      document.getElementById('test-results').textContent =
+        '总计: ' +
+        total +
+        ' | 通过: ' +
+        totalPassed +
+        ' | 失败: ' +
+        totalFailed +
+        ' | 通过率: ' +
+        pct +
+        '%';
+    }
+
     function runAllTests() {
-      var vr = { passed: 0, failed: 0 };
-      var sr = { passed: 0, failed: 0 };
+      const validatorResults = runValidatorTests();
+      const stateResults = runStateTests();
 
-      // Run validators
-      window.testResults = { passed: 0, failed: 0, tests: [] };
-      window.runValidatorTests();
-      vr.passed = window.testResults.passed;
-      vr.failed = window.testResults.failed;
-
-      // Run state
-      window.testResults = { passed: 0, failed: 0, tests: [] };
-      window.runStateTests();
-      sr.passed = window.testResults.passed;
-      sr.failed = window.testResults.failed;
-
-      var totalPassed = vr.passed + sr.passed;
-      var totalFailed = vr.failed + sr.failed;
-      var total = totalPassed + totalFailed;
-      var pct = total > 0 ? Math.round((totalPassed / total) * 100) : 0;
-
-      document.getElementById('test-results').textContent = '总计: ' + total + ' | 通过: ' + totalPassed + ' | 失败: ' + totalFailed + ' | 通过率: ' + pct + '%';
-      document.getElementById('validators-results').textContent = 'Validators: ' + vr.passed + '/' + (vr.passed + vr.failed) + ' 通过';
-      document.getElementById('state-results').textContent = 'State: ' + sr.passed + '/' + (sr.passed + sr.failed) + ' 通过';
+      renderSection('validators-results', 'Validators', validatorResults);
+      renderSection('state-results', 'State', stateResults);
+      renderSummary(validatorResults, stateResults);
     }
 
     document.getElementById('rerun-btn').addEventListener('click', runAllTests);
-
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', function() { setTimeout(runAllTests, 100); });
-    } else {
-      setTimeout(runAllTests, 100);
-    }
+    runAllTests();
   </script>
 </body>
 </html>

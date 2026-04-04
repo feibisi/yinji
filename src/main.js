@@ -1,13 +1,11 @@
-import { getState, setState } from './core/state.js';
-import {
-  handlePdfFile,
-  scheduleVisibleThumbnailRender,
-} from './modules/pdf-loader.js';
+import { getState, setState, subscribe } from './core/state.js';
+import { handlePdfFile } from './modules/pdf-loader.js';
 import {
   getCurrentPageCanvas,
   getCurrentActivePage,
   applyZoom,
   handleSidebarToggle,
+  showPage as showCanvasPage,
 } from './modules/canvas-manager.js';
 import {
   handleSealFile,
@@ -15,35 +13,37 @@ import {
   addStraddleSeal,
   deleteSelectedObject,
   toggleLockSelected,
+  clearSelectedSeal,
 } from './modules/stamp-manager.js';
-import { exportPDF } from './modules/exporter.js';
+import { exportPDF, exportCurrentPageAsImage } from './modules/exporter.js';
 import { initResponsive } from './modules/responsive.js';
 import { initSecurity } from './utils/security.js';
+import { showShortcutsHelp } from './ui/shortcut-help.js';
 import {
-  initOn as initGuidelines,
-  setEnabled as setGuidelinesEnabled,
-  isEnabled as isGuidelinesEnabled,
-} from './modules/guideline-manager.js';
+  openSignatureModal,
+  setupSignatureModal,
+} from './ui/signature-modal.js';
+import { isEnabled as isGuidelinesEnabled } from './modules/guideline-manager.js';
 import {
   copySelected,
   pasteClipboard,
   hasClipboard,
 } from './modules/object-clipboard.js';
 import {
-  togglePageSelection,
-  selectPageRange,
-  selectAllPages,
-  clearSelection,
-  setMultiSelectMode,
-  addSealToSelectedPages,
-  deleteAllStampsFromSelectedPages,
-  exportSelectedPages,
-} from './modules/batch-operations.js';
-import {
   initVirtualScroller,
-  refreshVirtualScroller,
-  cleanupVirtualScroller,
 } from './modules/thumbnail-virtual-scroller.js';
+import {
+  removeWhiteBackground,
+  saveSealToLibrary,
+  updateSealPreviewBrightness,
+} from './features/seal-tools.js';
+import { setupBatchUI } from './features/batch-ui.js';
+import {
+  setupSelectionControls,
+  syncSelectionCanvasState,
+} from './features/selection-controls.js';
+import { setupContextMenu } from './ui/context-menu.js';
+import { setupToolbarSections } from './ui/toolbar-sections.js';
 
 // ==================== DOM Elements ====================
 
@@ -53,28 +53,314 @@ const mainContent = document.getElementById('main-content');
 const pdfInputElement = document.getElementById('pdfInput');
 const sealInputElement = document.getElementById('sealInput');
 const mainUploadBtn = document.getElementById('upload-pdf-btn-main');
+const samplePdfButtons = document.querySelectorAll('[data-load-sample-pdf]');
 const sealUploadBtn = document.getElementById('upload-seal-btn');
 const sealPreviewImg = document.getElementById('seal-preview');
+const sealPreviewTrigger = document.getElementById('seal-preview-trigger');
+const sealPreviewOverlay = document.getElementById('seal-preview-overlay');
+const clearSealBtn = document.getElementById('clear-seal-btn');
 const thumbnailContainer = document.getElementById('thumbnail-container');
 const addSealBtn = document.getElementById('addSeal');
 const addStraddleBtn = document.getElementById('addStraddle');
 const exportPdfBtn = document.getElementById('exportPDF');
+const exportImageBtn = document.getElementById('exportImage');
 const zoomSlider = document.getElementById('zoom-slider');
 const pageSelector = document.getElementById('page-selector');
 const rotationSlider = document.getElementById('rotation-slider');
 const rotationInput = document.getElementById('rotation-input');
 const coordXInput = document.getElementById('coord-x');
 const coordYInput = document.getElementById('coord-y');
+const removeBgBtn = document.getElementById('remove-bg-btn');
 const copyStampBtn = document.getElementById('copy-stamp-btn');
 const pasteStampBtn = document.getElementById('paste-stamp-btn');
 const lockStampBtn = document.getElementById('lock-stamp-btn');
 const guidelineToggleBtn = document.getElementById('guideline-toggle-btn');
+const saveSealBtn = document.getElementById('save-seal-btn');
+const quickSignatureBtn = document.getElementById('quick-signature-btn');
+const collapsedSidebarPill = document.querySelector('.collapsed-sidebar-pill');
+const collapsedSidebarPrimary = document.getElementById('collapsed-sidebar-primary');
+const collapsedSidebarSecondary = document.getElementById('collapsed-sidebar-secondary');
+const guideSecondaryBtn = document.getElementById('guide-secondary-btn');
+const guidePrimaryBtn = document.getElementById('guide-primary-btn');
+const editNextStep = document.getElementById('edit-next-step');
+const editLastAction = document.getElementById('edit-last-action');
+const exportNextStep = document.getElementById('export-next-step');
+const exportLastAction = document.getElementById('export-last-action');
+const exportModeButtons = document.querySelectorAll('.export-mode-btn');
+const exportModePanels = document.querySelectorAll('.export-mode-panel');
+const togglePrecisionControlsBtn = document.getElementById('toggle-precision-controls');
+const precisionToggleRow = togglePrecisionControlsBtn?.closest('.button-group') || null;
+const precisionControls = document.getElementById('precision-controls');
+const precisionCoordinateFields = document.getElementById('precision-coordinate-fields');
+const workflowActions = document.querySelector('.workflow-actions');
+
+const EXPORT_MODE_STORAGE_KEY = 'yinji-export-mode';
+const SAMPLE_PDF_PATH = 'test-fixture.pdf';
+
+let lastBatchQueueState = {
+  count: 0,
+  processing: false,
+  currentIndex: 0,
+  total: 0,
+  currentFileName: '',
+};
+
+let lastUserFeedback = '最近结果会显示在这里。';
+let currentExportMode = getStoredExportMode();
+
+function getStoredExportMode() {
+  try {
+    const savedMode = window.localStorage?.getItem(EXPORT_MODE_STORAGE_KEY);
+    return savedMode === 'batch' ? 'batch' : 'single';
+  } catch (error) {
+    return 'single';
+  }
+}
+
+function setWorkflowFeedback(message) {
+  if (!message) {
+    return;
+  }
+
+  lastUserFeedback = message;
+  const isDefault = message === '最近结果会显示在这里。';
+  const text = isDefault ? message : `最近结果：${message}`;
+
+  if (editLastAction) {
+    editLastAction.textContent = text;
+    editLastAction.hidden = isDefault;
+  }
+
+  if (exportLastAction) {
+    exportLastAction.textContent = text;
+    exportLastAction.hidden = isDefault;
+  }
+}
+
+function switchToolbarTab(targetTab) {
+  if (!targetTab) {
+    return;
+  }
+
+  const tabBtns = document.querySelectorAll('.tab-btn');
+  const tabPanels = document.querySelectorAll('.tab-panel');
+
+  tabBtns.forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.tab === targetTab);
+  });
+
+  tabPanels.forEach((panel) => {
+    panel.classList.toggle('active', panel.id === `tab-${targetTab}`);
+  });
+}
+
+function setExportMode(mode, { save = true } = {}) {
+  currentExportMode = mode === 'batch' ? 'batch' : 'single';
+
+  exportModeButtons.forEach((button) => {
+    const isActive = button.dataset.exportMode === currentExportMode;
+    button.classList.toggle('active', isActive);
+    button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+  });
+
+  exportModePanels.forEach((panel) => {
+    const isActive = panel.dataset.exportModePanel === currentExportMode;
+    panel.hidden = !isActive;
+  });
+
+  if (save) {
+    try {
+      window.localStorage?.setItem(EXPORT_MODE_STORAGE_KEY, currentExportMode);
+    } catch (error) {
+      // Ignore localStorage write failures
+    }
+  }
+
+  updateToolbarStatus();
+}
+
+function getPlacedStampCount() {
+  const { fabricCanvases = [] } = getState();
+  return fabricCanvases.reduce((count, canvas) => {
+    if (!canvas) {
+      return count;
+    }
+
+    const objectCount = canvas
+      .getObjects()
+      .filter((obj) => !obj.isBackgroundImage).length;
+
+    return count + objectCount;
+  }, 0);
+}
+
+function updatePrecisionControlsButton() {
+  if (!togglePrecisionControlsBtn || !precisionControls) {
+    return;
+  }
+
+  const expanded = !precisionControls.hidden;
+  togglePrecisionControlsBtn.textContent = expanded
+    ? '收起微调'
+    : '微调位置';
+  togglePrecisionControlsBtn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+}
+
+function updateWorkflowGuidance({
+  hasPdf,
+  hasSeal,
+  currentActivePage,
+  placedStampCount,
+  savedSealCount,
+} = {}) {
+  const { currentSourceKind } = getState();
+  const isImageSource = currentSourceKind === 'image';
+
+  if (guidePrimaryBtn) {
+    let label = '选择文件';
+    let action = 'open-file';
+
+    if (hasPdf && !hasSeal) {
+      label = '选择印章图片';
+      action = 'open-seal';
+    } else if (hasPdf && hasSeal && placedStampCount === 0) {
+      label = '盖到当前页';
+      action = 'add-seal';
+    } else if (hasPdf && placedStampCount > 0) {
+      label = '立即下载';
+      action = 'download-now';
+    }
+
+    guidePrimaryBtn.textContent = label;
+    guidePrimaryBtn.dataset.action = action;
+  }
+
+  if (guideSecondaryBtn) {
+    guideSecondaryBtn.hidden = true;
+    guideSecondaryBtn.dataset.action = '';
+
+    if (!hasPdf) {
+      guideSecondaryBtn.textContent = '加载示例';
+      guideSecondaryBtn.dataset.action = 'load-sample';
+      guideSecondaryBtn.hidden = false;
+    } else if (placedStampCount > 0) {
+      guideSecondaryBtn.textContent = '页面导出';
+      guideSecondaryBtn.dataset.action = 'go-export';
+      guideSecondaryBtn.hidden = false;
+    } else if (!hasSeal && savedSealCount > 0) {
+      guideSecondaryBtn.textContent = '查看印章库';
+      guideSecondaryBtn.dataset.action = 'open-library';
+      guideSecondaryBtn.hidden = false;
+    }
+  }
+
+  if (workflowActions) {
+    workflowActions.classList.toggle(
+      'has-secondary',
+      Boolean(guideSecondaryBtn && !guideSecondaryBtn.hidden)
+    );
+  }
+
+  if (editNextStep) {
+    let text = '先选择文件。';
+
+    if (hasPdf && !hasSeal) {
+      text = '下一步：选择印章图片，或打开手写签名。';
+    } else if (hasPdf && hasSeal && placedStampCount === 0) {
+      text = `下一步：点“盖到当前页”，把印章放到第 ${currentActivePage} 页。`;
+    } else if (hasPdf && placedStampCount > 0) {
+      text = `已放置 ${placedStampCount} 个对象。现在可直接下载，或去页面导出。`;
+    }
+
+    editNextStep.textContent = text;
+  }
+
+  if (exportNextStep) {
+    let text = '先在“编辑”里盖章，再回来下载文件。';
+
+    if (currentExportMode === 'batch') {
+      if (lastBatchQueueState.processing) {
+        const progressText = lastBatchQueueState.total > 0
+          ? `${lastBatchQueueState.currentIndex}/${lastBatchQueueState.total}`
+          : `${lastBatchQueueState.count} 个文件`;
+        text = lastBatchQueueState.currentFileName
+          ? `正在处理 ${progressText}：${lastBatchQueueState.currentFileName}。`
+          : `正在处理 ${progressText}。`;
+      } else if (lastBatchQueueState.count === 0) {
+        text = '先添加要一起处理的 PDF。';
+      } else if (!hasSeal) {
+        text = '队列已准备。先回到“编辑”选择印章，再开始处理。';
+      } else {
+        text = `队列里有 ${lastBatchQueueState.count} 个文件，可以开始批量处理。`;
+      }
+    } else if (!hasPdf) {
+      text = '先回到“编辑”选择文件。';
+    } else if (placedStampCount === 0) {
+      text = '文件已加载。先在“编辑”里盖章，再回来下载。';
+    } else if (isImageSource) {
+      text = '可以下载盖章后的 PDF，也可以导出 PNG 图片。';
+    } else {
+      text = '可以直接下载整份文件，或按页面下载。';
+    }
+
+    exportNextStep.textContent = text;
+  }
+
+  setWorkflowFeedback(lastUserFeedback);
+}
+
+async function loadSamplePdf() {
+  samplePdfButtons.forEach((button) => {
+    button.disabled = true;
+  });
+
+  try {
+    const response = await fetch(new URL(SAMPLE_PDF_PATH, window.location.href));
+    if (!response.ok) {
+      throw new Error('示例文件加载失败');
+    }
+
+    const blob = await response.blob();
+    const file = new File([blob], '印迹示例.pdf', {
+      type: blob.type || 'application/pdf',
+    });
+
+    handlePdfFileWithCallbacks(file);
+  } catch (error) {
+    console.error('加载示例文件失败:', error);
+    window.Toast.error('示例文件加载失败，请检查本地文件。');
+  } finally {
+    samplePdfButtons.forEach((button) => {
+      button.disabled = false;
+    });
+  }
+}
+
+function openSealLibrarySection() {
+  switchToolbarTab('edit');
+
+  window.requestAnimationFrame(() => {
+    const section = document.querySelector('[data-section-key="edit-library"]');
+    if (!section) {
+      return;
+    }
+
+    const toggle = section.querySelector('.tool-section-toggle');
+    if (section.classList.contains('is-collapsed')) {
+      toggle?.click();
+    }
+
+    section.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    });
+  });
+}
 
 // ==================== Initialization ====================
 
 async function main() {
-  pdfjsLib.GlobalWorkerOptions.workerSrc =
-    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs';
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.mjs';
 
   // Initialize security measures (CSP, clickjacking prevention)
   initSecurity();
@@ -90,19 +376,323 @@ async function main() {
   }
 
   initializeEventListeners();
-  initContextMenu();
+  setupToolbarSections();
+  setupContextMenu({ onToolbarStatusChange: updateToolbarStatus });
+  applyToolbarSettings(window.Settings.getSettings());
+  updatePrecisionControlsButton();
+  setWorkflowFeedback(lastUserFeedback);
+  setExportMode(currentExportMode, { save: false });
+  updateToolbarAvailability();
+  updateToolbarStatus();
+  updateSidebarCollapsedStatus();
+  subscribe(() => {
+    updateToolbarAvailability();
+    updateToolbarStatus();
+    updateSidebarCollapsedStatus();
+  });
 
-  // Wrap showPage to init guidelines on page switch
-  const origShowPage = window.showPage;
-  window.showPage = async function (pageNum, forceRecalculate) {
-    if (origShowPage) {
-      await origShowPage(pageNum, forceRecalculate);
+  document.addEventListener('pdf-stamper:batch-queue-updated', (event) => {
+    lastBatchQueueState = {
+      count: event.detail?.count || 0,
+      processing: Boolean(event.detail?.processing),
+      currentIndex: event.detail?.currentIndex || 0,
+      total: event.detail?.total || event.detail?.count || 0,
+      currentFileName: event.detail?.currentFileName || '',
+    };
+    updateToolbarStatus();
+  });
+
+  document.addEventListener('pdf-stamper:seal-library-updated', () => {
+    updateToolbarStatus();
+  });
+
+  window.addEventListener('pdf-stamper:settings-updated', (event) => {
+    applyToolbarSettings(event.detail);
+  });
+
+  document.addEventListener('pdf-stamper:toast-shown', (event) => {
+    const message = event.detail?.message;
+    if (message) {
+      setWorkflowFeedback(message);
     }
-    initGuidelinesOnCurrentCanvas();
-    setupCoordinateInputs();
-  };
+  });
 
-  console.log('PDF Stamper initialized');
+  window.showPage = async function (pageNum, forceRecalculate = false) {
+    await showCanvasPage(pageNum, forceRecalculate);
+    syncSelectionCanvasState();
+  };
+}
+
+function applyToolbarSettings(settings) {
+  if (!settings) return;
+
+  const rotation = Number.isFinite(settings.sealRotation)
+    ? settings.sealRotation
+    : 0;
+
+  setState({ sealRotation: rotation });
+
+  if (rotationSlider) {
+    rotationSlider.value = String(rotation);
+  }
+
+  if (rotationInput) {
+    rotationInput.value = String(rotation);
+  }
+
+  if (sealPreviewImg && sealPreviewImg.src) {
+    sealPreviewImg.style.transform = `rotate(${rotation}deg)`;
+  }
+}
+
+function updateToolbarAvailability() {
+  const { currentPdfFile, sealImageElement, currentSourceKind } = getState();
+  const hasPdf = Boolean(currentPdfFile);
+  const hasSeal = Boolean(sealImageElement?.src);
+  const exportSelectedBtn = document.getElementById('export-selected-btn');
+  const exportAllBtn = document.getElementById('export-all-btn');
+  const exportSplitBtn = document.getElementById('export-split-btn');
+
+  if (removeBgBtn) {
+    removeBgBtn.disabled = !hasSeal;
+  }
+
+  if (saveSealBtn) {
+    saveSealBtn.disabled = !hasSeal;
+  }
+
+  if (clearSealBtn) {
+    clearSealBtn.disabled = !hasSeal;
+    clearSealBtn.hidden = !hasSeal;
+  }
+
+  if (sealPreviewOverlay) {
+    sealPreviewOverlay.hidden = !hasSeal;
+  }
+
+  if (sealPreviewTrigger) {
+    sealPreviewTrigger.setAttribute(
+      'aria-label',
+      hasSeal ? '点击更换印章图片' : '点击选择印章图片'
+    );
+  }
+
+  if (addSealBtn) {
+    addSealBtn.disabled = !hasPdf || !hasSeal;
+  }
+
+  if (addStraddleBtn) {
+    addStraddleBtn.disabled = !hasPdf || !hasSeal;
+  }
+
+  if (quickSignatureBtn) {
+    quickSignatureBtn.disabled = !hasPdf;
+  }
+
+  if (exportPdfBtn) {
+    exportPdfBtn.disabled = !hasPdf;
+  }
+
+  if (exportImageBtn) {
+    exportImageBtn.hidden = currentSourceKind !== 'image';
+    exportImageBtn.disabled = !hasPdf || currentSourceKind !== 'image';
+  }
+
+  if (exportSelectedBtn) {
+    exportSelectedBtn.disabled = !hasPdf;
+  }
+
+  if (exportAllBtn) {
+    exportAllBtn.disabled = !hasPdf;
+  }
+
+  if (exportSplitBtn) {
+    exportSplitBtn.disabled = !hasPdf;
+  }
+
+  if (guidePrimaryBtn) {
+    guidePrimaryBtn.disabled =
+      guidePrimaryBtn.dataset.action !== 'open-file' && !hasPdf;
+  }
+
+  if (togglePrecisionControlsBtn) {
+    togglePrecisionControlsBtn.disabled = !hasPdf;
+  }
+
+  if (guidelineToggleBtn) {
+    guidelineToggleBtn.disabled = !hasPdf;
+  }
+}
+
+function updateToolbarStatus() {
+  const state = getState();
+  const {
+    currentPdfFile,
+    currentActivePage,
+    totalPages,
+    sealImageElement,
+    selectedPages,
+    currentSourceKind,
+  } = state;
+  const hasPdf = Boolean(currentPdfFile);
+  const hasSeal = Boolean(sealImageElement?.src);
+  const isImageSource = currentSourceKind === 'image';
+  const canvas = getCurrentPageCanvas();
+  const activeObject = canvas?.getActiveObject();
+  const savedSealCount = window.SealLibrary?.getSavedSeals?.().length || 0;
+  const placedStampCount = getPlacedStampCount();
+
+  const editStatusFile = document.getElementById('edit-status-file');
+  const editStatusPage = document.getElementById('edit-status-page');
+  const editStatusSummary = document.getElementById('edit-status-summary');
+  const placePageChip = document.getElementById('place-page-chip');
+  const placeSealChip = document.getElementById('place-seal-chip');
+  const editSelectionChip = document.getElementById('edit-selection-chip');
+  const editGuidelineChip = document.getElementById('edit-guideline-chip');
+  const sealLibraryCountChip = document.getElementById('seal-library-count-chip');
+  const exportStatusFile = document.getElementById('export-status-file');
+  const exportStatusSummary = document.getElementById('export-status-summary');
+  const exportStatusNote = document.getElementById('export-status-note');
+
+  const pageText = hasPdf ? `第 ${currentActivePage} / ${totalPages} 页` : '第 - / - 页';
+  const hasActiveObject = Boolean(activeObject);
+  const selectionText = activeObject
+    ? activeObject.isLocked
+      ? '已选中，已锁定。'
+      : '已选中，可拖动。'
+    : !hasPdf
+      ? '先选择文件。'
+    : placedStampCount > 0
+      ? '点一下页面上的印章。'
+      : '盖章后，点一下页面上的印章。';
+  const guidelineText = isGuidelinesEnabled() ? '对齐辅助线：已开启' : '对齐辅助线：已关闭';
+
+  if (editStatusFile) {
+    editStatusFile.textContent = hasPdf ? currentPdfFile.name : '未加载文件';
+  }
+  if (editStatusPage) {
+    editStatusPage.textContent = pageText;
+  }
+  if (editStatusSummary) {
+    if (!hasPdf) {
+      editStatusSummary.textContent = '先选择文件。';
+    } else if (!hasSeal) {
+      editStatusSummary.textContent = '文件已打开。下一步请选印章图片或手写签名。';
+    } else if (activeObject) {
+      editStatusSummary.textContent = activeObject.isLocked
+        ? '已选中，已锁定。'
+        : '已选中，可拖动。';
+    } else if (placedStampCount > 0) {
+      editStatusSummary.textContent = `已放置 ${placedStampCount} 个对象。点一下印章可继续调整。`;
+    } else {
+      editStatusSummary.textContent = '印章已准备，还没放到页面上。';
+    }
+  }
+  if (placePageChip) {
+    placePageChip.textContent = hasPdf ? `当前页 ${currentActivePage} / ${totalPages}` : '当前页 - / -';
+  }
+  if (placeSealChip) {
+    placeSealChip.textContent = hasSeal ? '印章或签名已就绪' : '先选印章或签名';
+  }
+  if (sealUploadBtn) {
+    sealUploadBtn.textContent = hasSeal ? '更换印章图片' : '选择印章图片';
+  }
+  if (editSelectionChip) {
+    editSelectionChip.textContent = selectionText;
+  }
+  if (editGuidelineChip) {
+    editGuidelineChip.textContent = guidelineText;
+  }
+  if (precisionToggleRow) {
+    precisionToggleRow.hidden = !hasActiveObject;
+  }
+  if (!hasActiveObject && precisionControls && !precisionControls.hidden) {
+    precisionControls.hidden = true;
+  }
+  if (precisionCoordinateFields) {
+    precisionCoordinateFields.hidden = !hasActiveObject;
+  }
+  if (togglePrecisionControlsBtn) {
+    togglePrecisionControlsBtn.hidden = !hasActiveObject;
+    togglePrecisionControlsBtn.disabled = !hasActiveObject;
+    updatePrecisionControlsButton();
+  }
+  if (sealLibraryCountChip) {
+    sealLibraryCountChip.textContent = `已保存 ${savedSealCount} 个印章`;
+  }
+  if (exportStatusFile) {
+    exportStatusFile.textContent = hasPdf ? currentPdfFile.name : '未加载文件';
+  }
+  if (exportStatusSummary) {
+    exportStatusSummary.textContent = pageText;
+  }
+  if (exportStatusNote) {
+    if (currentExportMode === 'batch') {
+      exportStatusNote.textContent = lastBatchQueueState.processing
+        ? lastBatchQueueState.total > 0
+          ? `正在处理 ${lastBatchQueueState.currentIndex}/${lastBatchQueueState.total}。`
+          : '正在批量处理。'
+        : lastBatchQueueState.count > 0
+          ? `队列里有 ${lastBatchQueueState.count} 个文件。`
+          : '先添加要处理的 PDF。';
+    } else if (!hasPdf) {
+      exportStatusNote.textContent = '先在“编辑”里选择文件。';
+    } else if (placedStampCount === 0) {
+      exportStatusNote.textContent = isImageSource
+        ? '文件已加载，但还没盖章。导出时可选 PDF 或 PNG。'
+        : '文件已加载，但还没盖章。';
+    } else if (selectedPages.size > 0) {
+      exportStatusNote.textContent = `已放置 ${placedStampCount} 个对象，已选 ${selectedPages.size} 页。`;
+    } else if (isImageSource) {
+      exportStatusNote.textContent = `已放置 ${placedStampCount} 个对象，可以下载 PDF，也可以导出 PNG 图片。`;
+    } else {
+      exportStatusNote.textContent = `已放置 ${placedStampCount} 个对象，不选页面就下载全部。`;
+    }
+  }
+
+  updateWorkflowGuidance({
+    hasPdf,
+    hasSeal,
+    currentActivePage,
+    placedStampCount,
+    savedSealCount,
+  });
+}
+
+function updateSidebarCollapsedStatus() {
+  if (!collapsedSidebarPrimary || !collapsedSidebarSecondary) {
+    return;
+  }
+
+  const { currentPdfFile, currentActivePage, totalPages } = getState();
+  const isCollapsed = appContainer.classList.contains('sidebar-collapsed');
+
+  if (sidebarToggleBtn) {
+    sidebarToggleBtn.title = isCollapsed ? '展开页面预览' : '收起页面预览';
+    sidebarToggleBtn.setAttribute(
+      'aria-label',
+      isCollapsed ? '展开页面预览' : '收起页面预览'
+    );
+  }
+
+  if (!currentPdfFile) {
+    collapsedSidebarPrimary.textContent = '等待';
+    collapsedSidebarSecondary.textContent = '上传文件';
+    if (collapsedSidebarPill) {
+      collapsedSidebarPill.title = '等待上传文件';
+      collapsedSidebarPill.setAttribute('aria-label', '等待上传文件');
+    }
+    return;
+  }
+
+  collapsedSidebarPrimary.textContent = `${currentActivePage}/${totalPages}`;
+  collapsedSidebarSecondary.textContent = '当前页';
+  if (collapsedSidebarPill) {
+    const fileName = currentPdfFile.name || '已加载文件';
+    const summary = `${fileName}，当前第 ${currentActivePage} / ${totalPages} 页`;
+    collapsedSidebarPill.title = summary;
+    collapsedSidebarPill.setAttribute('aria-label', summary);
+  }
 }
 
 // ==================== Event Listeners ====================
@@ -139,35 +729,150 @@ function initializeEventListeners() {
     dragCounter = 0;
     mainContent.classList.remove('dragover');
     const files = e.dataTransfer.files;
-    if (files.length > 0 && files[0].type === 'application/pdf') {
+    if (files.length > 0) {
       handlePdfFileWithCallbacks(files[0]);
     }
   });
 
+  mainContent.addEventListener(
+    'wheel',
+    (event) => {
+      if ((!event.ctrlKey && !event.metaKey) || !getState().pdfDoc) {
+        return;
+      }
+
+      event.preventDefault();
+
+      const currentZoom = getState().globalZoomMultiplier;
+      const zoomStep = Math.min(
+        0.18,
+        Math.max(0.04, Math.abs(event.deltaY) / 480)
+      );
+      const nextZoom = Math.min(
+        2,
+        Math.max(0.5, currentZoom + (event.deltaY < 0 ? zoomStep : -zoomStep))
+      );
+
+      if (nextZoom === currentZoom) {
+        return;
+      }
+
+      setState({ globalZoomMultiplier: nextZoom });
+      if (zoomSlider) {
+        zoomSlider.value = String(nextZoom);
+      }
+      applyZoom({
+        clientX: event.clientX,
+        clientY: event.clientY,
+      });
+    },
+    { passive: false }
+  );
+
   // File upload buttons
   mainUploadBtn.addEventListener('click', () => pdfInputElement.click());
+  samplePdfButtons.forEach((button) => {
+    button.addEventListener('click', loadSamplePdf);
+  });
   pdfInputElement.addEventListener('change', (e) => {
     if (e.target.files.length > 0) {
       handlePdfFileWithCallbacks(e.target.files[0]);
+      e.target.value = '';
     }
   });
   sealUploadBtn.addEventListener('click', () => sealInputElement.click());
+  if (sealPreviewTrigger) {
+    sealPreviewTrigger.addEventListener('click', () => {
+      sealInputElement.click();
+    });
+    sealPreviewTrigger.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') {
+        return;
+      }
+
+      event.preventDefault();
+      sealInputElement.click();
+    });
+  }
+  if (clearSealBtn) {
+    clearSealBtn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      clearSelectedSeal();
+      updateToolbarStatus();
+    });
+  }
   sealInputElement.addEventListener('change', (e) => {
     if (e.target.files.length > 0) {
       handleSealFile(e.target.files[0]);
+      e.target.value = '';
     }
   });
+
+  if (guidePrimaryBtn) {
+    guidePrimaryBtn.addEventListener('click', () => {
+      switch (guidePrimaryBtn.dataset.action) {
+        case 'open-seal':
+          sealInputElement.click();
+          break;
+        case 'add-seal':
+          addNormalSeal();
+          break;
+        case 'download-now':
+          exportPDF(getState().currentPdfFile);
+          break;
+        case 'go-export':
+          switchToolbarTab('export');
+          setExportMode('single');
+          break;
+        case 'open-file':
+        default:
+          pdfInputElement.click();
+          break;
+      }
+    });
+  }
+
+  if (guideSecondaryBtn) {
+    guideSecondaryBtn.addEventListener('click', () => {
+      switch (guideSecondaryBtn.dataset.action) {
+        case 'load-sample':
+          loadSamplePdf();
+          break;
+        case 'open-library':
+          openSealLibrarySection();
+          break;
+        case 'go-export':
+          switchToolbarTab('export');
+          setExportMode('single');
+          break;
+        case 'download-now':
+          exportPDF(getState().currentPdfFile);
+          break;
+        default:
+          break;
+      }
+    });
+  }
 
   // Stamp operation buttons
   addSealBtn.addEventListener('click', addNormalSeal);
   addStraddleBtn.addEventListener('click', addStraddleSeal);
   exportPdfBtn.addEventListener('click', () =>
-    exportPDF(pdfInputElement.files[0])
+    exportPDF(getState().currentPdfFile)
   );
+
+  if (exportImageBtn) {
+    exportImageBtn.addEventListener('click', () =>
+      exportCurrentPageAsImage(getState().currentPdfFile)
+    );
+  }
 
   // Copy / Paste buttons
   if (copyStampBtn) {
-    copyStampBtn.addEventListener('click', () => copySelected());
+    copyStampBtn.addEventListener('click', () => {
+      copySelected();
+      updateToolbarStatus();
+    });
   }
   if (pasteStampBtn) {
     pasteStampBtn.addEventListener('click', async () => {
@@ -176,27 +881,24 @@ function initializeEventListeners() {
         return;
       }
       await pasteClipboard();
+      updateToolbarStatus();
     });
   }
 
   // Lock button
   if (lockStampBtn) {
-    lockStampBtn.addEventListener('click', () => toggleLockSelected());
-  }
-
-  // Guideline toggle button
-  if (guidelineToggleBtn) {
-    guidelineToggleBtn.addEventListener('click', () => {
-      setGuidelinesEnabled(!isGuidelinesEnabled());
-      guidelineToggleBtn.classList.toggle('active', isGuidelinesEnabled());
-      guidelineToggleBtn.textContent = isGuidelinesEnabled() ? '辅助线 ON' : '辅助线';
+    lockStampBtn.addEventListener('click', () => {
+      toggleLockSelected();
+      updateToolbarStatus();
     });
-    guidelineToggleBtn.classList.add('active');
-    guidelineToggleBtn.textContent = '辅助线 ON';
   }
 
-  // Coordinate input events
-  setupCoordinateInputs();
+  setupSelectionControls({
+    coordXInput,
+    coordYInput,
+    guidelineToggleBtn,
+    onToolbarStatusChange: updateToolbarStatus,
+  });
 
   // Help button
   const helpBtn = document.getElementById('helpBtn');
@@ -213,35 +915,31 @@ function initializeEventListeners() {
   }
 
   // Save seal to library
-  const saveSealBtn = document.getElementById('save-seal-btn');
   if (saveSealBtn) {
-    saveSealBtn.addEventListener('click', saveSealToLibrary);
+    saveSealBtn.addEventListener('click', async () => {
+      await saveSealToLibrary();
+      updateToolbarStatus();
+    });
   }
 
-  // Batch processing
-  setupBatchProcessing();
+  setupBatchUI({ onToolbarStatusChange: updateToolbarStatus });
 
-  // Tab switching
-  const tabBtns = document.querySelectorAll('.tab-btn');
-  const tabPanels = document.querySelectorAll('.tab-panel');
-
-  tabBtns.forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const targetTab = btn.dataset.tab;
-
-      tabBtns.forEach((b) => b.classList.remove('active'));
-      tabPanels.forEach((p) => p.classList.remove('active'));
-
-      btn.classList.add('active');
-      const targetPanel = document.getElementById(`tab-${targetTab}`);
-      if (targetPanel) {
-        targetPanel.classList.add('active');
-      }
+  exportModeButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      switchToolbarTab('export');
+      setExportMode(button.dataset.exportMode);
     });
   });
 
-  // Batch operations
-  setupBatchOperations();
+  // Tab switching
+  const tabBtns = document.querySelectorAll('.tab-btn');
+
+  tabBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      switchToolbarTab(btn.dataset.tab);
+    });
+  });
+
 
   // Keyboard shortcuts
   document.addEventListener('keydown', handleKeyboardShortcuts);
@@ -295,20 +993,28 @@ function initializeEventListeners() {
       const brightness = parseInt(e.target.value, 10);
       setState({ sealBrightness: brightness });
       brightnessValue.textContent = `${brightness}%`;
-      updateSealPreviewBrightness();
+      updateSealPreviewBrightness(sealPreviewImg);
     });
   }
 
   // Remove white background
-  const removeBgBtn = document.getElementById('remove-bg-btn');
   if (removeBgBtn) {
-    removeBgBtn.addEventListener('click', removeWhiteBackground);
+    removeBgBtn.addEventListener('click', () => {
+      removeWhiteBackground(sealPreviewImg);
+      updateToolbarStatus();
+    });
   }
 
   // Handwritten signature
-  const addSignatureBtn = document.getElementById('addSignature');
-  if (addSignatureBtn) {
-    addSignatureBtn.addEventListener('click', openSignatureModal);
+  if (quickSignatureBtn) {
+    quickSignatureBtn.addEventListener('click', openSignatureModal);
+  }
+
+  if (togglePrecisionControlsBtn && precisionControls) {
+    togglePrecisionControlsBtn.addEventListener('click', () => {
+      precisionControls.hidden = !precisionControls.hidden;
+      updatePrecisionControlsButton();
+    });
   }
 
   setupSignatureModal();
@@ -326,149 +1032,31 @@ function handlePdfFileWithCallbacks(file) {
     onLoadingStart: (message) => {
       window.Loading.showPdfLoading(message);
     },
-    onLoadingEnd: () => {
+    onLoadingEnd: (success) => {
       window.Loading.hide();
-      appContainer.classList.remove('no-pdf-loaded');
-      initGuidelinesOnCurrentCanvas();
-
-      // Refresh virtual scroller after PDF is loaded
-      setTimeout(() => refreshVirtualScroller(), 200);
+      appContainer.classList.toggle('no-pdf-loaded', !success);
+      if (success) {
+        syncSelectionCanvasState();
+        const { totalPages, currentSourceKind } = getState();
+        window.Toast.success(
+          currentSourceKind === 'image'
+            ? `${file.name} 已加载为 ${totalPages} 页。现在可以盖章，导出时可选 PDF 或 PNG。`
+            : `${file.name} 已加载，共 ${totalPages} 页。下一步请选印章。`
+        );
+      }
     },
     onError: (message) => {
       window.Toast.error(message);
-      appContainer.classList.add('no-pdf-loaded');
-      window.Loading.hide();
     },
     onPagesRendered: (pageNum) => {
       // Page rendered callback
     },
+  }).catch((error) => {
+    console.error('处理 PDF 上传失败:', error);
+    window.Loading.hide();
+    appContainer.classList.add('no-pdf-loaded');
+    window.Toast.error('文件加载失败，请重试。');
   });
-}
-
-/**
- * Setup batch processing
- */
-function setupBatchProcessing() {
-  const uploadBatchBtn = document.getElementById('upload-batch-btn');
-  const batchInputElement = document.getElementById('batchInput');
-  const processBatchBtn = document.getElementById('processBatch');
-  const clearBatchBtn = document.getElementById('clearBatch');
-
-  if (uploadBatchBtn && batchInputElement) {
-    uploadBatchBtn.addEventListener('click', () => batchInputElement.click());
-    batchInputElement.addEventListener('change', (e) => {
-      if (e.target.files.length > 0) {
-        window.BatchProcessing.addFilesToBatch(e.target.files);
-        e.target.value = '';
-      }
-    });
-  }
-
-  if (processBatchBtn) {
-    processBatchBtn.addEventListener('click', () =>
-      window.BatchProcessing.processBatchFiles()
-    );
-  }
-  if (clearBatchBtn) {
-    clearBatchBtn.addEventListener('click', () =>
-      window.BatchProcessing.clearBatchQueue()
-    );
-  }
-}
-
-/**
- * Setup batch operations (multi-page selection)
- */
-function setupBatchOperations() {
-  const selectAllBtn = document.getElementById('select-all-pages-btn');
-  const clearSelectionBtn = document.getElementById('clear-selection-btn');
-  const batchAddSealBtn = document.getElementById('batch-add-seal-btn');
-  const batchDeleteStampsBtn = document.getElementById('batch-delete-stamps-btn');
-  const thumbnailContainer = document.getElementById('thumbnail-container');
-
-  if (selectAllBtn) {
-    selectAllBtn.addEventListener('click', () => selectAllPages());
-  }
-  if (clearSelectionBtn) {
-    clearSelectionBtn.addEventListener('click', () => clearSelection());
-  }
-  if (batchAddSealBtn) {
-    batchAddSealBtn.addEventListener('click', async () => {
-      const sealImageElement = getState().sealImageElement;
-      if (!sealImageElement || !sealImageElement.src) {
-        window.Toast.warning('请先选择印章图片');
-        return;
-      }
-      const settings = window.Settings.getSettings();
-      await addSealToSelectedPages(sealImageElement, settings);
-    });
-  }
-  if (batchDeleteStampsBtn) {
-    batchDeleteStampsBtn.addEventListener('click', async () => {
-      await deleteAllStampsFromSelectedPages();
-    });
-  }
-
-  // Export buttons
-  const exportSelectedBtn = document.getElementById('export-selected-btn');
-  const exportAllBtn = document.getElementById('export-all-btn');
-  const exportSplitBtn = document.getElementById('export-split-btn');
-  const exportHint = document.getElementById('export-hint');
-
-  if (exportSelectedBtn) {
-    exportSelectedBtn.addEventListener('click', async () => {
-      await exportSelectedPages(pdfInputElement.files[0], 'selected');
-    });
-  }
-  if (exportAllBtn) {
-    exportAllBtn.addEventListener('click', async () => {
-      await exportSelectedPages(pdfInputElement.files[0], 'all');
-    });
-  }
-  if (exportSplitBtn) {
-    exportSplitBtn.addEventListener('click', async () => {
-      await exportSelectedPages(pdfInputElement.files[0], 'split');
-    });
-  }
-
-  // Update export hint based on selection
-  function updateExportHint() {
-    const selectedPages = getState().selectedPages;
-    if (exportHint) {
-      if (selectedPages.size > 0) {
-        const pages = Array.from(selectedPages).sort((a, b) => a - b).join(', ');
-        exportHint.textContent = `当前选中: ${pages} 页`;
-      } else {
-        exportHint.textContent = '未选择页面，将导出全部页面';
-      }
-    }
-  }
-
-  // Observe state changes to update hint
-  const { subscribe } = await import('./core/state.js');
-  subscribe(() => updateExportHint());
-  updateExportHint();
-
-  // Thumbnail click for multi-select (Shift/Ctrl)
-  if (thumbnailContainer) {
-    thumbnailContainer.addEventListener('click', (e) => {
-      const thumb = e.target.closest('.thumbnail-item');
-      if (!thumb) return;
-
-      const pageNum = parseInt(thumb.dataset.pageNumber);
-      if (!pageNum) return;
-
-      if (e.ctrlKey || e.metaKey) {
-        // Ctrl+Click: Toggle single page
-        e.preventDefault();
-        togglePageSelection(pageNum);
-      } else if (e.shiftKey) {
-        // Shift+Click: Select range
-        e.preventDefault();
-        selectPageRange(pageNum);
-      }
-    });
-  }
 }
 
 /**
@@ -500,6 +1088,7 @@ function handleKeyboardShortcuts(e) {
   if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
     e.preventDefault();
     copySelected();
+    updateToolbarStatus();
     return;
   }
 
@@ -511,6 +1100,7 @@ function handleKeyboardShortcuts(e) {
       return;
     }
     pasteClipboard();
+    updateToolbarStatus();
     return;
   }
 
@@ -518,13 +1108,14 @@ function handleKeyboardShortcuts(e) {
   if ((e.ctrlKey || e.metaKey) && e.key === 'l') {
     e.preventDefault();
     toggleLockSelected();
+    updateToolbarStatus();
     return;
   }
 
   // Ctrl+S: Export PDF
   if ((e.ctrlKey || e.metaKey) && e.key === 's') {
     e.preventDefault();
-    exportPDF(pdfInputElement.files[0]);
+    exportPDF(getState().currentPdfFile);
     return;
   }
 
@@ -532,6 +1123,7 @@ function handleKeyboardShortcuts(e) {
   if ((e.key === 'Delete' || e.key === 'Backspace') && activeObject) {
     e.preventDefault();
     deleteSelectedObject();
+    updateToolbarStatus();
     return;
   }
 
@@ -539,6 +1131,7 @@ function handleKeyboardShortcuts(e) {
   if (e.key === 'Escape' && activeObject) {
     canvas.discardActiveObject();
     canvas.renderAll();
+    updateToolbarStatus();
     return;
   }
 
@@ -642,584 +1235,6 @@ function handleKeyboardShortcuts(e) {
     e.preventDefault();
     showShortcutsHelp();
     return;
-  }
-}
-
-/**
- * Update seal preview brightness
- */
-function updateSealPreviewBrightness() {
-  const brightness = getState().sealBrightness;
-  if (sealPreviewImg && sealPreviewImg.src) {
-    sealPreviewImg.style.filter = `brightness(${brightness / 100})`;
-  }
-}
-
-/**
- * Save seal to library
- */
-async function saveSealToLibrary() {
-  const sealImageElement = getState().sealImageElement;
-  const state = getState();
-
-  if (
-    !sealImageElement ||
-    !sealImageElement.src ||
-    sealImageElement.naturalWidth === 0
-  ) {
-    window.Toast.warning('请先选择一个有效的印章图片！');
-    return;
-  }
-
-  const sealName = await window.Settings.promptInput({
-    title: '保存到印章库',
-    message: '请输入印章名称：',
-    defaultValue: '印章' + (window.SealLibrary.getSavedSeals().length + 1),
-    placeholder: '请输入印章名称',
-    confirmText: '保存',
-    cancelText: '取消',
-  });
-
-  if (!sealName) return;
-  if (sealName.trim().length === 0) {
-    window.Toast.warning('印章名称不能为空');
-    return;
-  }
-
-  // Save with full settings
-  const settings = {
-    rotation: state.sealRotation,
-    brightness: state.sealBrightness,
-    opacity: 1,
-    size: 0.15,
-  };
-
-  const success = window.SealLibrary.addSealToLibrary(
-    sealName.trim(),
-    sealImageElement.src,
-    settings
-  );
-
-  if (success) {
-    window.SealLibrary.renderSealLibrary();
-  }
-}
-
-/**
- * Show keyboard shortcuts help
- */
-function showShortcutsHelp() {
-  const shortcuts = [
-    {
-      category: '编辑',
-      items: [
-        { keys: 'Ctrl+Z', desc: '撤销' },
-        { keys: 'Ctrl+Y', desc: '重做' },
-        { keys: 'Delete', desc: '删除选中印章' },
-        { keys: 'Esc', desc: '取消选择' },
-        { keys: 'Ctrl+C', desc: '复制选中印章' },
-        { keys: 'Ctrl+V', desc: '粘贴印章' },
-        { keys: 'Ctrl+L', desc: '锁定/解锁印章' },
-      ],
-    },
-    {
-      category: '移动',
-      items: [
-        { keys: '\u2191\u2193\u2190\u2192', desc: '移动印章 (1px)' },
-        { keys: 'Shift+\u2191\u2193\u2190\u2192', desc: '快速移动 (10px)' },
-      ],
-    },
-    {
-      category: '视图',
-      items: [
-        { keys: '+/-', desc: '缩放' },
-        { keys: 'PageUp/Down', desc: '切换页面' },
-      ],
-    },
-    {
-      category: '操作',
-      items: [
-        { keys: 'Ctrl+S', desc: '导出PDF' },
-        { keys: '?', desc: '显示此帮助' },
-      ],
-    },
-  ];
-
-  let container = document.createElement('div');
-  container.style.fontFamily = 'sans-serif';
-
-  let title = document.createElement('h2');
-  title.style.marginTop = '0';
-  title.textContent = '键盘快捷键';
-  container.appendChild(title);
-
-  shortcuts.forEach((cat) => {
-    let heading = document.createElement('h3');
-    heading.style.margin = '1rem 0 0.5rem';
-    heading.style.color = '#007bff';
-    heading.textContent = cat.category;
-    container.appendChild(heading);
-
-    let table = document.createElement('table');
-    table.style.width = '100%';
-    table.style.borderCollapse = 'collapse';
-
-    cat.items.forEach((item) => {
-      let row1 = document.createElement('tr');
-      let cell1 = document.createElement('td');
-      cell1.style.padding = '0.5rem';
-      cell1.style.borderBottom = '1px solid #eee';
-      cell1.style.fontWeight = '600';
-      cell1.textContent = item.keys;
-      row1.appendChild(cell1);
-
-      let cell2 = document.createElement('td');
-      cell2.style.padding = '0.5rem';
-      cell2.style.borderBottom = '1px solid #eee';
-      cell2.textContent = item.desc;
-      row1.appendChild(cell2);
-
-      table.appendChild(row1);
-    });
-
-    container.appendChild(table);
-  });
-
-  const modal = document.createElement('div');
-  modal.style.cssText =
-    'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:30000; display:flex; align-items:center; justify-content:center;';
-
-  const content = document.createElement('div');
-  content.style.cssText =
-    'background:white; padding:2rem; border-radius:8px; max-width:600px; max-height:80vh; overflow-y:auto;';
-  content.appendChild(container);
-
-  const closeBtn = document.createElement('button');
-  closeBtn.textContent = '关闭 (Esc)';
-  closeBtn.style.cssText =
-    'margin-top:1rem; padding:0.75rem 1.5rem; background:#007bff; color:white; border:none; border-radius:4px; cursor:pointer; font-size:1rem;';
-  closeBtn.onclick = () => modal.remove();
-  content.appendChild(closeBtn);
-
-  modal.appendChild(content);
-  modal.onclick = (e) => {
-    if (e.target === modal) modal.remove();
-  };
-  document.addEventListener('keydown', function escHandler(e) {
-    if (e.key === 'Escape') {
-      modal.remove();
-      document.removeEventListener('keydown', escHandler);
-    }
-  });
-
-  document.body.appendChild(modal);
-}
-
-/**
- * Initialize context menu
- */
-function initContextMenu() {
-  const contextMenu = document.getElementById('context-menu');
-  if (!contextMenu) return;
-
-  document.addEventListener('contextmenu', (e) => {
-    const canvasWrapper = e.target.closest('.canvas-wrapper');
-    if (!canvasWrapper) {
-      hideContextMenu();
-      return;
-    }
-
-    const canvas = getCurrentPageCanvas();
-    const activeObject = canvas?.getActiveObject();
-
-    if (activeObject) {
-      e.preventDefault();
-      showContextMenu(e.clientX, e.clientY);
-    }
-  });
-
-  contextMenu.addEventListener('click', (e) => {
-    const menuItem = e.target.closest('.context-menu-item');
-    if (!menuItem) return;
-
-    const action = menuItem.dataset.action;
-    handleContextMenuAction(action);
-    hideContextMenu();
-  });
-
-  document.addEventListener('click', (e) => {
-    if (!e.target.closest('#context-menu')) {
-      hideContextMenu();
-    }
-  });
-}
-
-/**
- * Show context menu
- */
-function showContextMenu(x, y) {
-  const contextMenu = document.getElementById('context-menu');
-  if (!contextMenu) return;
-
-  contextMenu.classList.remove('hidden');
-  contextMenu.style.left = x + 'px';
-  contextMenu.style.top = y + 'px';
-
-  if (window.lucide) {
-    window.lucide.createIcons();
-  }
-}
-
-/**
- * Hide context menu
- */
-function hideContextMenu() {
-  const contextMenu = document.getElementById('context-menu');
-  if (contextMenu) {
-    contextMenu.classList.add('hidden');
-  }
-}
-
-/**
- * Handle context menu action
- */
-function handleContextMenuAction(action) {
-  switch (action) {
-    case 'delete':
-      deleteSelectedObject();
-      break;
-    case 'copy':
-      copySelected();
-      break;
-    case 'paste':
-      if (hasClipboard()) {
-        pasteClipboard();
-      }
-      break;
-    case 'toggle-lock':
-      toggleLockSelected();
-      break;
-    case 'undo':
-      window.History.undo();
-      break;
-    case 'redo':
-      window.History.redo();
-      break;
-  }
-}
-
-/**
- * Setup X/Y coordinate inputs to update selected object position
- */
-function setupCoordinateInputs() {
-  const canvas = getCurrentPageCanvas();
-
-  // Update inputs when selection changes
-  if (canvas) {
-    canvas.on('selection:created', _updateCoordInputs);
-    canvas.on('selection:updated', _updateCoordInputs);
-    canvas.on('object:moving', _updateCoordInputs);
-    canvas.on('selection:cleared', _clearCoordInputs);
-  }
-
-  // Listen for input changes
-  if (coordXInput) {
-    coordXInput.addEventListener('change', _applyCoordInputs);
-  }
-  if (coordYInput) {
-    coordYInput.addEventListener('change', _applyCoordInputs);
-  }
-}
-
-function _updateCoordInputs(e) {
-  const obj = e?.target || getCurrentPageCanvas()?.getActiveObject();
-  if (!obj) return;
-  if (coordXInput) coordXInput.value = Math.round(obj.left || 0);
-  if (coordYInput) coordYInput.value = Math.round(obj.top || 0);
-}
-
-function _clearCoordInputs() {
-  if (coordXInput) coordXInput.value = '';
-  if (coordYInput) coordYInput.value = '';
-}
-
-function _applyCoordInputs() {
-  const canvas = getCurrentPageCanvas();
-  if (!canvas) return;
-  const activeObject = canvas.getActiveObject();
-  if (!activeObject || activeObject.isLocked) return;
-
-  const x = parseFloat(coordXInput.value);
-  const y = parseFloat(coordYInput.value);
-
-  if (isNaN(x) && isNaN(y)) return;
-
-  const oldState = window.History.getObjectState(activeObject);
-
-  if (!isNaN(x)) activeObject.set({ left: x });
-  if (!isNaN(y)) activeObject.set({ top: y });
-
-  canvas.renderAll();
-
-  const newState = window.History.getObjectState(activeObject);
-  const command = new window.History.ModifySealCommand(
-    getCurrentActivePage(),
-    activeObject,
-    oldState,
-    newState
-  );
-  window.History.executeCommand(command);
-}
-
-/**
- * Toggle alignment guidelines on/off
- */
-function toggleGuidelines() {
-  const enabled = !isGuidelinesEnabled();
-  setGuidelinesEnabled(enabled);
-  if (guidelineToggleBtn) {
-    guidelineToggleBtn.classList.toggle('active', enabled);
-    guidelineToggleBtn.textContent = enabled ? '辅助线 ON' : '辅助线';
-  }
-}
-
-/**
- * Initialize guidelines on the current page canvas
- */
-function initGuidelinesOnCurrentCanvas() {
-  const canvas = getCurrentPageCanvas();
-  if (!canvas) return;
-  initGuidelines(canvas);
-}
-
-// ==================== Remove White Background ====================
-
-/**
- * Remove white background from image
- */
-function removeWhiteBackground() {
-  const sealImageElement = getState().sealImageElement;
-
-  if (
-    !sealImageElement ||
-    !sealImageElement.src ||
-    sealImageElement.naturalWidth === 0
-  ) {
-    window.Toast.warning('请先选择一个有效的印章图片！');
-    return;
-  }
-
-  const img = new Image();
-  img.src = sealImageElement.src;
-  img.onload = () => {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    canvas.width = img.width;
-    canvas.height = img.height;
-    ctx.drawImage(img, 0, 0);
-
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const data = imageData.data;
-    const threshold = 200;
-
-    for (let i = 0; i < data.length; i += 4) {
-      const r = data[i];
-      const g = data[i + 1];
-      const b = data[i + 2];
-
-      if (r > threshold && g > threshold && b > threshold) {
-        data[i + 3] = 0;
-      }
-    }
-
-    ctx.putImageData(imageData, 0, 0);
-
-    const newSrc = canvas.toDataURL('image/png');
-    sealImageElement.src = newSrc;
-    setState({ sealImageElement });
-    if (sealPreviewImg) {
-      sealPreviewImg.src = newSrc;
-    }
-
-    window.Toast.success('已成功去除白色背景！');
-  };
-  img.onerror = () => {
-    window.Toast.error('处理图片时发生错误。');
-  };
-}
-
-// ==================== Handwritten Signature ====================
-
-let signaturePad = {
-  canvas: null,
-  ctx: null,
-  isDrawing: false,
-  lastX: 0,
-  lastY: 0,
-  initialized: false,
-
-  init: function () {
-    if (this.initialized) return;
-
-    this.canvas = document.getElementById('signature-canvas');
-    this.ctx = this.canvas.getContext('2d');
-
-    this.ctx.strokeStyle = '#000000';
-    this.ctx.lineWidth = 3;
-    this.ctx.lineCap = 'round';
-    this.ctx.lineJoin = 'round';
-
-    this.canvas.addEventListener('mousedown', this.startDrawing.bind(this));
-    this.canvas.addEventListener('mousemove', this.draw.bind(this));
-    this.canvas.addEventListener('mouseup', this.stopDrawing.bind(this));
-    this.canvas.addEventListener('mouseout', this.stopDrawing.bind(this));
-
-    this.canvas.addEventListener(
-      'touchstart',
-      (e) => {
-        e.preventDefault();
-        const touch = e.touches[0];
-        const rect = this.canvas.getBoundingClientRect();
-        this.startDrawing({
-          offsetX: touch.clientX - rect.left,
-          offsetY: touch.clientY - rect.top,
-        });
-      }
-    );
-
-    this.canvas.addEventListener(
-      'touchmove',
-      (e) => {
-        e.preventDefault();
-        const touch = e.touches[0];
-        const rect = this.canvas.getBoundingClientRect();
-        this.draw({
-          offsetX: touch.clientX - rect.left,
-          offsetY: touch.clientY - rect.top,
-        });
-      }
-    );
-
-    this.canvas.addEventListener('touchend', this.stopDrawing.bind(this));
-
-    this.initialized = true;
-  },
-
-  startDrawing: function (e) {
-    this.isDrawing = true;
-    [this.lastX, this.lastY] = [e.offsetX, e.offsetY];
-  },
-
-  draw: function (e) {
-    if (!this.isDrawing) return;
-    this.ctx.beginPath();
-    this.ctx.moveTo(this.lastX, this.lastY);
-    this.ctx.lineTo(e.offsetX, e.offsetY);
-    this.ctx.stroke();
-    [this.lastX, this.lastY] = [e.offsetX, e.offsetY];
-  },
-
-  stopDrawing: function () {
-    this.isDrawing = false;
-  },
-
-  clear: function () {
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-  },
-
-  isEmpty: function () {
-    const pixelBuffer = new Uint32Array(
-      this.ctx
-        .getImageData(0, 0, this.canvas.width, this.canvas.height)
-        .data.buffer
-    );
-    return !pixelBuffer.some((color) => color !== 0);
-  },
-
-  toDataURL: function () {
-    return this.canvas.toDataURL('image/png');
-  },
-};
-
-/**
- * Open signature modal
- */
-function openSignatureModal() {
-  const modal = document.getElementById('signature-modal');
-  if (modal) {
-    modal.classList.remove('hidden');
-    signaturePad.init();
-    signaturePad.clear();
-  }
-}
-
-/**
- * Close signature modal
- */
-function closeSignatureModal() {
-  const modal = document.getElementById('signature-modal');
-  if (modal) {
-    modal.classList.add('hidden');
-  }
-}
-
-/**
- * Add signature to current page
- */
-function addSignatureToPage() {
-  if (signaturePad.isEmpty()) {
-    window.Toast.warning('请先书写签名！');
-    return;
-  }
-
-  const signatureDataUrl = signaturePad.toDataURL();
-  const canvas = getCurrentPageCanvas();
-
-  if (!canvas) return;
-
-  fabric.Image.fromURL(signatureDataUrl, (img) => {
-    img.scaleToWidth(200);
-    img.set({
-      left: canvas.originalWidth / 2,
-      top: canvas.originalHeight / 2,
-      originX: 'center',
-      originY: 'center',
-      borderColor: '#007bff',
-      cornerColor: '#007bff',
-      cornerSize: 10,
-      transparentCorners: false,
-    });
-
-    const command = new window.History.AddSealCommand(
-      getCurrentActivePage(),
-      img
-    );
-    window.History.executeCommand(command);
-
-    canvas.setActiveObject(img);
-    canvas.renderAll();
-
-    closeSignatureModal();
-    window.Toast.success('签名已添加');
-  });
-}
-
-/**
- * Setup signature modal
- */
-function setupSignatureModal() {
-  const closeSignatureBtn = document.querySelector('.modal-close');
-  const clearSignatureBtn = document.getElementById('clear-signature-btn');
-  const confirmSignatureBtn = document.getElementById('confirm-signature-btn');
-
-  if (closeSignatureBtn) {
-    closeSignatureBtn.addEventListener('click', closeSignatureModal);
-  }
-  if (clearSignatureBtn) {
-    clearSignatureBtn.addEventListener('click', () => signaturePad.clear());
-  }
-  if (confirmSignatureBtn) {
-    confirmSignatureBtn.addEventListener('click', addSignatureToPage);
   }
 }
 

@@ -3,12 +3,19 @@
  * Handles multiple PDF files processing
  */
 
+import { dataUrlToUint8Array } from '../utils/data-url.js';
+
 const { getState } = window.AppState;
 
 // ==================== State ====================
 
 let batchFiles = [];
 let batchProcessing = false;
+let batchProgress = {
+  currentIndex: 0,
+  total: 0,
+  currentFileName: '',
+};
 
 // ==================== File Management ====================
 
@@ -24,7 +31,7 @@ function addFilesToBatch(files) {
     const validation = window.Validators.validatePdfFile(file);
     if (validation.valid) {
       // Check if file already exists
-      if (!batchFiles.some(f => f.name === file.name && f.size === file.size)) {
+      if (!batchFiles.some((item) => item.file.name === file.name && item.file.size === file.size)) {
         batchFiles.push({
           id: Date.now() + Math.random(),
           file: file,
@@ -40,7 +47,9 @@ function addFilesToBatch(files) {
   });
 
   if (validFiles.length > 0) {
-    window.Toast?.success(`已添加 ${validFiles.length} 个文件到批量队列`);
+    window.Toast?.success(
+      `已加入批量队列：${validFiles.length} 个文件。切到“批量处理”后就能开始。`
+    );
     renderBatchFileList();
   }
 
@@ -56,7 +65,7 @@ function addFilesToBatch(files) {
 function removeFileFromBatch(fileId) {
   batchFiles = batchFiles.filter(f => f.id !== fileId);
   renderBatchFileList();
-  window.Toast?.info('文件已移除');
+  window.Toast?.info('已从批量队列移除 1 个文件。');
 }
 
 /**
@@ -78,8 +87,13 @@ async function clearBatchQueue() {
   }
 
   batchFiles = [];
+  batchProgress = {
+    currentIndex: 0,
+    total: 0,
+    currentFileName: '',
+  };
   renderBatchFileList();
-  window.Toast?.success('批量队列已清空');
+  window.Toast?.success('批量队列已清空。');
 }
 
 // ==================== Processing ====================
@@ -89,28 +103,34 @@ async function clearBatchQueue() {
  */
 async function processBatchFiles() {
   if (batchFiles.length === 0) {
-    window.Toast?.warning('批量队列为空');
+    window.Toast?.warning('批量队列还是空的，先添加 PDF。');
     return;
   }
 
   const { sealImageElement } = getState();
 
   if (!sealImageElement || !sealImageElement.src) {
-    window.Toast?.warning('请先选择印章图片');
+    window.Toast?.warning('批量处理前，先在“编辑”里选择印章图片。');
     return;
   }
 
   if (batchProcessing) {
-    window.Toast?.warning('批量处理正在进行中');
+    window.Toast?.warning('批量处理还在进行，请等当前队列完成。');
     return;
   }
 
   batchProcessing = true;
   const totalFiles = batchFiles.length;
+  batchProgress = {
+    currentIndex: 0,
+    total: totalFiles,
+    currentFileName: '',
+  };
   let completed = 0;
   let failed = 0;
 
   window.Loading.showExportLoading('批量处理中...');
+  window.Toast?.info(`开始批量处理，共 ${totalFiles} 个文件。`);
 
   for (let i = 0; i < batchFiles.length; i++) {
     const fileItem = batchFiles[i];
@@ -121,6 +141,11 @@ async function processBatchFiles() {
     }
 
     fileItem.status = 'processing';
+    batchProgress = {
+      currentIndex: i + 1,
+      total: totalFiles,
+      currentFileName: fileItem.file.name,
+    };
     renderBatchFileList();
 
     try {
@@ -145,13 +170,19 @@ async function processBatchFiles() {
   }
 
   batchProcessing = false;
+  batchProgress = {
+    currentIndex: 0,
+    total: totalFiles,
+    currentFileName: '',
+  };
   window.Loading.hide();
+  renderBatchFileList();
 
   // Show summary
   if (failed === 0) {
-    window.Toast?.success(`批量处理完成！成功处理 ${completed} 个文件`);
+    window.Toast?.success(`批量处理完成。已处理 ${completed} 个文件。`);
   } else {
-    window.Toast?.warning(`批量处理完成！成功 ${completed} 个，失败 ${failed} 个`);
+    window.Toast?.warning(`批量处理完成。成功 ${completed} 个，失败 ${failed} 个。`);
   }
 }
 
@@ -173,21 +204,29 @@ async function processSingleBatchFile(fileItem) {
         const pages = pdfDoc.getPages();
 
         // Get seal configuration
-        const { sealImageElement: sealImage, sealRotation } = getState();
-        const rotation = sealRotation || 0;
+        const {
+          sealImageElement: sealImage,
+          sealRotation = 0,
+          sealBrightness = 100,
+        } = getState();
+        const settings = window.Settings.getSettings();
+        const { getRotatedCroppedImage } = await import('../modules/stamp-manager.js');
+
+        const rotatedSealUrl = getRotatedCroppedImage(
+          sealImage,
+          sealRotation,
+          sealBrightness
+        );
+        const pngImageBytes = dataUrlToUint8Array(rotatedSealUrl);
+        const pngImage = await pdfDoc.embedPng(pngImageBytes);
 
         // Apply seal to all pages (center position)
         for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
           const page = pages[pageIndex];
           const { width: pageWidth, height: pageHeight } = page.getSize();
 
-          // Get rotated seal image
-          const rotatedSealUrl = window.getRotatedCroppedImage(sealImage, rotation);
-          const pngImageBytes = await fetch(rotatedSealUrl).then(res => res.arrayBuffer());
-          const pngImage = await pdfDoc.embedPng(pngImageBytes);
-
-          // Calculate seal size (1/5 of page width)
-          const sealWidth = pageWidth / 5;
+          // Calculate seal size
+          const sealWidth = pageWidth * settings.sealSize;
           const sealHeight = sealWidth * (pngImage.height / pngImage.width);
 
           // Center position
@@ -201,6 +240,7 @@ async function processSingleBatchFile(fileItem) {
             width: sealWidth,
             height: sealHeight,
             rotate: degrees(0),
+            opacity: settings.sealOpacity,
           });
         }
 
@@ -234,17 +274,45 @@ async function processSingleBatchFile(fileItem) {
 function renderBatchFileList() {
   const container = document.getElementById('batch-file-list');
   if (!container) return;
+  const processBatchBtn = document.getElementById('processBatch');
+  const clearBatchBtn = document.getElementById('clearBatch');
+
+  const emitQueueUpdate = () => {
+    document.dispatchEvent(
+      new CustomEvent('pdf-stamper:batch-queue-updated', {
+        detail: {
+          count: batchFiles.length,
+          processing: batchProcessing,
+          currentIndex: batchProgress.currentIndex,
+          total: batchProgress.total,
+          currentFileName: batchProgress.currentFileName,
+        },
+      })
+    );
+  };
+
+  if (processBatchBtn) {
+    processBatchBtn.disabled = batchFiles.length === 0 || batchProcessing;
+  }
+
+  if (clearBatchBtn) {
+    clearBatchBtn.disabled = batchFiles.length === 0 || batchProcessing;
+  }
 
   if (batchFiles.length === 0) {
-    const emptyState = document.createElement('p');
+    const emptyState = document.createElement('div');
     emptyState.className = 'batch-empty';
-    emptyState.textContent = '暂无文件，请添加 PDF 文件';
+    emptyState.innerHTML = `
+      <strong>批量队列为空</strong>
+      <span>添加多个 PDF 后，会按当前印章设置一个接一个处理。</span>
+    `;
     container.replaceChildren(emptyState);
 
     const emptyCounter = document.getElementById('batch-file-count');
     if (emptyCounter) {
       emptyCounter.textContent = '0 个文件';
     }
+    emitQueueUpdate();
     return;
   }
 
@@ -254,10 +322,10 @@ function renderBatchFileList() {
   batchFiles.forEach((fileItem) => {
     const statusClass = `batch-file-status-${fileItem.status}`;
     const statusText = {
-      pending: '等待中',
-      processing: '处理中...',
-      completed: '已完成',
-      error: '失败',
+      pending: '等待处理',
+      processing: '正在处理',
+      completed: '已处理',
+      error: '处理失败',
     }[fileItem.status];
 
     const item = document.createElement('div');
@@ -285,8 +353,11 @@ function renderBatchFileList() {
 
     if (fileItem.status === 'pending') {
       const removeButton = document.createElement('button');
+      removeButton.type = 'button';
       removeButton.className = 'batch-file-remove';
       removeButton.dataset.fileId = fileItem.id;
+      removeButton.title = '移除此文件';
+      removeButton.setAttribute('aria-label', `移除 ${fileItem.file.name}`);
       removeButton.textContent = '×';
       removeButton.addEventListener('click', () => {
         removeFileFromBatch(fileItem.id);
@@ -304,6 +375,8 @@ function renderBatchFileList() {
   if (counter) {
     counter.textContent = `${batchFiles.length} 个文件`;
   }
+
+  emitQueueUpdate();
 }
 
 // ==================== Exports ====================

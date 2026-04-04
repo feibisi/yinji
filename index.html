@@ -4,14 +4,18 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="public/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PDF Stamper - 现代化PDF盖章工具</title>
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; base-uri 'self'; form-action 'self'"
+    />
+    <title>印迹（Yinji）- 本地文件印章工具</title>
     <meta
       name="description"
-      content="PDF Stamper - 免费在线PDF盖章工具，拥有现代化UI和交互体验，支持普通印章和骑缝章，所有操作均在本地完成，保护您的隐私安全。"
+      content="印迹（Yinji）- 本地文件印章工具，支持 PDF、PNG、JPG 盖章，支持普通印章、骑缝章和批量处理，所有操作均在本地完成。"
     />
     <meta
       name="keywords"
-      content="PDF Stamper,PDF盖章,电子印章,骑缝章,在线工具,PDF处理,免费盖章,现代化UI"
+      content="印迹,Yinji,PDF印章,图片盖章,电子印章,骑缝章,本地工具,PDF处理,批量处理"
     />
     <link rel="stylesheet" href="src/style.css">
   </head>
@@ -19,10 +23,16 @@
     <div id="app" class="sidebar-visible no-pdf-loaded">
       <aside class="sidebar" id="sidebar">
         <div class="sidebar-header">
-          <h2 class="sidebar-title">页面预览</h2>
-          <button id="sidebar-toggle" class="sidebar-toggle-btn" title="收起/展开侧边栏">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line></svg>
-          </button>
+          <div class="sidebar-heading">
+            <h2 class="sidebar-title">页面预览</h2>
+            <p class="sidebar-subtitle">上传后显示页面缩略图</p>
+          </div>
+          <div class="sidebar-header-actions">
+            <button id="batch-mode-btn" class="btn btn-sm btn-secondary batch-mode-btn" title="一次选择多页">选多页</button>
+            <button id="sidebar-toggle" class="sidebar-toggle-btn" title="收起页面预览" aria-label="收起页面预览">
+              <i data-lucide="panel-left-close" class="sidebar-toggle-icon" aria-hidden="true"></i>
+            </button>
+          </div>
         </div>
         <!-- 批量操作工具栏 -->
         <div class="batch-toolbar" id="batch-toolbar" style="display:none;">
@@ -33,13 +43,23 @@
           <div class="batch-actions">
             <button class="btn btn-sm btn-secondary" id="select-all-pages-btn">全选</button>
             <button class="btn btn-sm btn-secondary" id="clear-selection-btn">清除选择</button>
-            <button class="btn btn-sm btn-primary" id="batch-add-seal-btn">批量添加印章</button>
-            <button class="btn btn-sm btn-danger" id="batch-delete-stamps-btn">批量删除印章</button>
+            <button class="btn btn-sm btn-primary" id="batch-add-seal-btn">多页盖章</button>
+            <button class="btn btn-sm btn-danger" id="batch-delete-stamps-btn">多页删章</button>
           </div>
         </div>
         <div class="thumbnail-container" id="thumbnail-container">
           <div class="empty-state">
-             <p>请先上传PDF文件</p>
+            <i data-lucide="file-up" class="empty-state-icon" aria-hidden="true"></i>
+            <h3>缩略图预览</h3>
+            <p>加载文件后，这里显示页面缩略图和页码。</p>
+          </div>
+        </div>
+        <div class="sidebar-collapsed-panel" aria-hidden="true">
+          <div class="collapsed-sidebar-pill">
+            <span class="collapsed-sidebar-label">预览</span>
+            <i data-lucide="file-text" class="collapsed-sidebar-icon" aria-hidden="true"></i>
+            <strong id="collapsed-sidebar-primary">等待</strong>
+            <span id="collapsed-sidebar-secondary">上传文件</span>
           </div>
         </div>
       </aside>
@@ -47,14 +67,25 @@
       <main class="main-content-wrapper">
         <div class="main-content" id="main-content">
           <div id="drop-zone" class="drop-zone">
-              <div class="drop-zone-prompt">
-                  <img src="public/drag-drop-icon.svg" alt="拖拽上传" width="80">
-                  <h2>将 PDF 文件拖拽到此处</h2>
-                  <p>或</p>
-                  <br>
-                  <button class="btn btn-primary" id="upload-pdf-btn-main">选择文件</button>
-                  <input type="file" id="pdfInput" accept=".pdf" hidden />
+            <div class="drop-zone-prompt">
+              <div class="drop-zone-eyebrow">开始处理</div>
+              <div class="drop-zone-illustration">
+                <i data-lucide="file-up" class="drop-zone-icon" aria-hidden="true"></i>
               </div>
+              <h2>拖入 PDF 或图片文件</h2>
+              <p class="drop-zone-subtitle">支持 PDF、PNG、JPG。所有处理都在本地完成，不上传服务器。</p>
+              <div class="drop-zone-actions">
+                <button class="btn btn-primary" id="upload-pdf-btn-main">选择文件</button>
+                <button class="btn btn-secondary" id="load-sample-pdf-btn" data-load-sample-pdf>加载示例</button>
+                <span>或直接拖拽到这里</span>
+              </div>
+              <div class="drop-zone-features">
+                <span class="feature-chip">PDF</span>
+                <span class="feature-chip">PNG / JPG</span>
+                <span class="feature-chip">本地处理</span>
+              </div>
+              <input type="file" id="pdfInput" accept=".pdf,image/png,image/jpeg,.png,.jpg,.jpeg" hidden />
+            </div>
           </div>
         </div>
         <div class="main-content-footer">
@@ -62,7 +93,7 @@
             <span id="page-indicator">第 - / - 页</span>
             <select id="page-selector" class="page-selector" title="快速跳转页面"></select>
           </div>
-          <div class="zoom-controls">
+          <div class="zoom-controls" title="Ctrl 或 Command 加滚轮，可按鼠标位置缩放预览">
             <label for="zoom-slider">缩放:</label>
             <input type="range" id="zoom-slider" min="0.5" max="2" value="1" step="0.1" list="zoom-markers">
             <span id="zoom-value">100% (Fit-Width)</span>
@@ -76,9 +107,12 @@
 
       <aside class="toolbar" id="toolbar">
         <div class="toolbar-header">
-          <div>
-            <h1>PDF Stamper</h1>
-            <p>现代化 PDF 盖章工具</p>
+          <div class="toolbar-brand">
+            <h1>印迹（Yinji）</h1>
+            <div class="toolbar-brand-meta">
+              <p>本地文件印章工具</p>
+              <span class="product-badge">本地处理</span>
+            </div>
           </div>
           <div class="header-actions">
             <button id="settingsBtn" class="icon-btn" title="设置"><i data-lucide="settings"></i></button>
@@ -96,98 +130,190 @@
         <div class="tab-content-wrapper">
           <!-- Tab 1: 编辑 -->
           <div class="tab-panel active" id="tab-edit">
-            <div class="tool-section">
-              <h3>印章设置</h3>
-              <div class="seal-preview-container">
-                <img id="seal-preview" src="" alt="印章预览" class="seal-preview-image hidden">
-                <div id="seal-placeholder" class="seal-preview-placeholder">
-                  <span>印章预览</span>
+            <div class="toolbar-context-card">
+              <div class="toolbar-context-title">先选文件，再开始盖章</div>
+              <p class="toolbar-context-copy">第一次用时，先选择文件。支持 PDF、PNG、JPG。文件打开后，再选印章图片或手写签名，最后把它们放到页面上。</p>
+              <div class="toolbar-context-steps">
+                <span class="context-step">1 选择文件</span>
+                <span class="context-step">2 选择印章</span>
+                <span class="context-step">3 盖章并导出</span>
+              </div>
+            </div>
+            <div class="toolbar-status-card">
+              <div class="toolbar-status-header">
+                <strong id="edit-status-file">未加载文件</strong>
+                <span id="edit-status-page">第 - / - 页</span>
+              </div>
+              <p class="toolbar-status-note" id="edit-status-summary">先选择文件。</p>
+            </div>
+            <div class="workflow-card">
+              <div class="workflow-card-header">
+                <div>
+                  <div class="workflow-card-title">常用流程</div>
+                  <p class="workflow-card-copy">按顺序点按钮就行。</p>
                 </div>
               </div>
+              <p class="workflow-next-step" id="edit-next-step">先选择文件。</p>
+              <div class="workflow-actions">
+                <button type="button" class="btn btn-primary" id="guide-primary-btn">选择文件</button>
+                <button type="button" class="btn btn-secondary" id="guide-secondary-btn" hidden>加载示例</button>
+              </div>
+              <p class="workflow-last-action" id="edit-last-action">最近结果会显示在这里。</p>
+            </div>
+            <div class="tool-section" data-section-key="edit-seal-source" data-section-default="open">
+              <h3>印章与盖章</h3>
+              <p class="tool-section-note">先选印章图片或手写签名，再盖到当前页或盖骑缝章。</p>
+              <div class="seal-preview-container" id="seal-preview-trigger" role="button" tabindex="0" aria-label="选择印章图片">
+                <img id="seal-preview" src="" alt="印章预览" class="seal-preview-image hidden">
+                <div id="seal-placeholder" class="seal-preview-placeholder">
+                  <span class="seal-placeholder-badge">未选择素材</span>
+                  <strong>准备印章或签名</strong>
+                  <p>选择图片、手写签名，或从印章库回填。</p>
+                </div>
+                <div class="seal-preview-overlay" id="seal-preview-overlay" hidden>
+                  <span class="seal-preview-overlay-text">点击更换印章</span>
+                  <button class="seal-preview-icon-btn" id="clear-seal-btn" type="button" title="清除当前素材" aria-label="清除当前素材">
+                    <i data-lucide="trash-2" aria-hidden="true"></i>
+                  </button>
+                </div>
+              </div>
+              <div class="button-group button-grid-2 button-grid-readable">
+                <button class="btn btn-primary" id="upload-seal-btn">选择印章图片</button>
+                <button class="btn btn-secondary" id="quick-signature-btn">手写签名</button>
+              </div>
               <div class="button-group button-grid-2">
-                <button class="btn btn-secondary" id="upload-seal-btn">选择 印章/签名</button>
-                <button class="btn btn-action" id="remove-bg-btn" title="去除图片白色背景，使其透明">一键去白底</button>
+                <button id="addSeal" class="btn btn-primary">盖普通章</button>
+                <button id="addStraddle" class="btn btn-secondary">盖骑缝章</button>
               </div>
               <input type="file" id="sealInput" accept="image/*" hidden />
-              <div class="rotation-controls">
-                <label for="rotation-slider">旋转:</label>
-                <input type="range" id="rotation-slider" min="-180" max="180" value="0" step="1">
-                <input type="number" id="rotation-input" min="-180" max="180" value="0" class="rotation-input-box">
-                <span>°</span>
+            </div>
+            <div class="tool-section" data-section-key="edit-appearance" data-section-default="closed">
+              <h3>高级调整</h3>
+              <p class="tool-section-note">常用流程里用不到的选项放在这里，需要时再展开。</p>
+              <div class="button-group button-grid-2">
+                <button class="btn btn-tertiary" id="remove-bg-btn" title="去除图片白色背景，使其透明">去掉白底</button>
+                <button class="btn btn-tertiary" id="save-seal-btn">存到常用印章</button>
               </div>
               <div class="rotation-controls">
                 <label for="brightness-slider">亮度:</label>
                 <input type="range" id="brightness-slider" min="0" max="200" value="100" step="1">
                 <span id="brightness-value">100%</span>
               </div>
-              <div class="button-group button-grid-2">
-                <button id="addSeal" class="btn btn-action">添加普通章</button>
-                <button id="addStraddle" class="btn btn-action">添加骑缝章</button>
+              <div class="rotation-controls">
+                <label for="rotation-slider">旋转:</label>
+                <input type="range" id="rotation-slider" min="-180" max="180" value="0" step="1">
+                <input type="number" id="rotation-input" min="-180" max="180" value="0" class="rotation-input-box">
+                <span>°</span>
               </div>
-              <div class="button-group">
-                <button class="btn btn-secondary" id="save-seal-btn">保存到印章库</button>
-              </div>
-              <!-- 精确坐标定位 -->
-              <div class="coord-controls">
-                <label>X:</label>
-                <input type="number" id="coord-x" class="coord-input" step="1" min="0" placeholder="0">
-                <label>Y:</label>
-                <input type="number" id="coord-y" class="coord-input" step="1" min="0" placeholder="0">
-              </div>
-              <!-- 编辑操作 -->
-              <div class="button-group button-grid-2">
+              <div class="button-group button-grid-3">
                 <button class="btn btn-secondary" id="copy-stamp-btn" title="复制选中 (Ctrl+C)">复制</button>
                 <button class="btn btn-secondary" id="paste-stamp-btn" title="粘贴 (Ctrl+V)">粘贴</button>
-              </div>
-              <div class="button-group button-grid-2">
                 <button class="btn btn-secondary" id="lock-stamp-btn" title="锁定/解锁 (Ctrl+L)">锁定</button>
-                <button class="btn btn-secondary" id="guideline-toggle-btn" title="切换对齐辅助线">辅助线</button>
+              </div>
+              <div class="button-group precision-toggle-row">
+                <button type="button" class="btn btn-secondary btn-sm precision-toggle-btn" id="toggle-precision-controls" hidden>微调位置</button>
+              </div>
+              <div class="precision-panel" id="precision-controls" hidden>
+                <div class="precision-panel-header">
+                  <div class="precision-panel-copy">
+                    <strong>精确调整</strong>
+                    <p id="edit-selection-chip">先点选页面上的印章，再微调位置。</p>
+                  </div>
+                  <button class="btn btn-secondary btn-sm" id="guideline-toggle-btn" title="拖动印章时显示并吸附到对齐辅助线">辅助线：开</button>
+                </div>
+                <span id="edit-guideline-chip" hidden>对齐辅助线：已开启</span>
+                <div class="coord-controls" id="precision-coordinate-fields" hidden>
+                  <div class="coord-field">
+                    <label for="coord-x">X</label>
+                    <input type="number" id="coord-x" class="coord-input" step="1" min="0" placeholder="0">
+                  </div>
+                  <div class="coord-field">
+                    <label for="coord-y">Y</label>
+                    <input type="number" id="coord-y" class="coord-input" step="1" min="0" placeholder="0">
+                  </div>
+                </div>
               </div>
             </div>
-            <div class="tool-section">
-              <h3>签名</h3>
-              <div class="button-group">
-                <button id="addSignature" class="btn btn-action"><i data-lucide="pen-tool" style="width:16px;height:16px;display:inline-block;vertical-align:middle;margin-right:4px;"></i> 手写签名</button>
-              </div>
-            </div>
-            <div class="tool-section">
+            <div class="tool-section" data-section-key="edit-library" data-section-default="closed">
               <h3>印章库</h3>
-              <div id="seal-library-container"></div>
+              <p class="tool-section-note">保存常用印章后，可以一键回填当前设置。</p>
+              <div class="tool-chip-row">
+                <span class="tool-chip" id="seal-library-count-chip">已保存 0 个印章</span>
+              </div>
+              <div id="seal-library-container" class="seal-library-container"></div>
             </div>
           </div>
 
           <!-- Tab 2: 导出 -->
           <div class="tab-panel" id="tab-export">
-            <div class="tool-section">
-              <h3>导出当前文件</h3>
-              <button id="exportPDF" class="btn btn-primary btn-export">导出盖章 PDF</button>
+            <div class="toolbar-context-card toolbar-context-card-export">
+              <div class="toolbar-context-title">先盖章，再下载结果</div>
+              <p class="toolbar-context-copy">单份文件先在“编辑”里盖章，再回来下载。只有要一起处理多份 PDF 时，才切到批量处理。</p>
             </div>
-            <div class="tool-section">
-              <h3>批量导出</h3>
-              <div class="button-group">
-                <button class="btn btn-secondary" id="export-selected-btn" title="导出选中的页面">导出选中页面</button>
-                <button class="btn btn-secondary" id="export-all-btn" title="导出全部页面">导出全部页面</button>
-                <button class="btn btn-secondary" id="export-split-btn" title="每页独立导出为单个文件">分别导出</button>
+            <div class="toolbar-status-card">
+              <div class="toolbar-status-header">
+                <strong id="export-status-file">未加载文件</strong>
+                <span id="export-status-summary">第 - / - 页</span>
               </div>
-              <p id="export-hint" style="font-size:0.75rem;color:var(--text-color-secondary);margin-top:0.5rem;"></p>
+              <p class="toolbar-status-note" id="export-status-note">先在“编辑”里盖章，再回来下载。</p>
             </div>
-            <div class="tool-section">
-              <h3>批量处理</h3>
-              <div class="button-group">
-                <button class="btn btn-secondary" id="upload-batch-btn">添加批量文件</button>
-                <input type="file" id="batchInput" accept=".pdf" multiple hidden />
+            <div class="workflow-card">
+              <div class="workflow-card-header">
+                <div>
+                  <div class="workflow-card-title">导出流程</div>
+                  <p class="workflow-card-copy">先盖章，再回来下载。</p>
+                </div>
               </div>
-              <div id="batch-file-list" class="batch-file-list"></div>
-              <div class="button-group">
-                <button id="processBatch" class="btn btn-primary">开始批量处理</button>
-                <button id="clearBatch" class="btn btn-danger">清空队列</button>
+              <p class="workflow-next-step" id="export-next-step">先在“编辑”里盖章，再回来下载文件。</p>
+              <p class="workflow-last-action" id="export-last-action">最近结果会显示在这里。</p>
+            </div>
+            <div class="export-mode-switch" role="tablist" aria-label="导出方式">
+              <button type="button" class="export-mode-btn active" id="export-mode-single-btn" data-export-mode="single" aria-selected="true">单份文件</button>
+              <button type="button" class="export-mode-btn" id="export-mode-batch-btn" data-export-mode="batch" aria-selected="false">批量处理</button>
+            </div>
+            <div class="export-mode-panel" data-export-mode-panel="single">
+              <div class="tool-section" data-pdf-dependent="true" data-section-key="export-current" data-section-default="open">
+                <h3>下载整份文件</h3>
+                <p class="tool-section-note">把当前文件的盖章结果下载出来。图片文件会额外提供 PNG 导出。</p>
+                <div class="button-group button-grid-2">
+                  <button id="exportPDF" class="btn btn-primary btn-export">下载盖章 PDF</button>
+                  <button id="exportImage" class="btn btn-secondary btn-export" hidden>下载 PNG 图片</button>
+                </div>
+              </div>
+              <div class="tool-section" data-pdf-dependent="true" data-section-key="export-pages" data-section-default="closed">
+                <h3>按页面下载</h3>
+                <p class="tool-section-note">适合只拿部分页面。没有选页时，会默认下载全部页面。</p>
+                <div class="button-group button-grid-compact">
+                  <button class="btn btn-secondary" id="export-selected-btn" title="下载选中的页面">下载选中页</button>
+                  <button class="btn btn-secondary" id="export-all-btn" title="下载全部页面">下载全部页</button>
+                  <button class="btn btn-tertiary" id="export-split-btn" title="每页独立下载为单个文件">逐页下载</button>
+                </div>
+                <p id="export-hint" class="export-hint"></p>
+              </div>
+            </div>
+            <div class="export-mode-panel" data-export-mode-panel="batch" hidden>
+              <div class="tool-section" data-section-key="export-batch" data-section-default="open">
+                <h3>批量处理多份 PDF</h3>
+                <div class="section-meta-line">
+                  <p class="tool-section-note">适合一口气处理多份文件。会按当前印章设置依次生成结果。</p>
+                  <span class="section-counter" id="batch-file-count">0 个文件</span>
+                </div>
+                <div class="button-group">
+                  <button class="btn btn-secondary" id="upload-batch-btn">添加多个 PDF</button>
+                  <input type="file" id="batchInput" accept=".pdf" multiple hidden />
+                </div>
+                <div id="batch-file-list" class="batch-file-list"></div>
+                <div class="button-group button-grid-compact button-grid-compact-2">
+                  <button id="processBatch" class="btn btn-primary">开始批量处理</button>
+                  <button id="clearBatch" class="btn btn-danger">清空队列</button>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
         <div class="toolbar-footer">
-          <p>所有操作均在本地完成。</p>
+          <p>本地处理 · 文件不会上传到服务器</p>
           <a href="https://www.modiqi.com" target="_blank" rel="noopener noreferrer">莫蒂奇数字技术（苏州）有限公司</a>
         </div>
       </aside>
@@ -195,34 +321,26 @@
 
     <script
       type="module"
-      src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs"
-      integrity="sha384-+0ti2moQlmLN7WZHE2RHIf5lV8hHxhxEalN0il3YZceG26fUPyOkR0hp9daxk1i7"
-      crossorigin="anonymous"
+      src="vendor/pdf.min.mjs"
     ></script>
     <script
-      src="https://unpkg.com/fabric@6.6.1/dist/index.min.js"
-      integrity="sha384-E+yJ0X86m1UfH+Y1i518CAcMolreugTFzpZC0jw6MktyVBgWBI7+zWXvQwKif/Kb"
-      crossorigin="anonymous"
+      src="vendor/fabric.min.js"
     ></script>
     <script
-      src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"
-      integrity="sha384-weMABwrltA6jWR8DDe9Jp5blk+tZQh7ugpCsF3JwSA53WZM9/14PjS5LAJNHNjAI"
-      crossorigin="anonymous"
+      src="vendor/pdf-lib.min.js"
     ></script>
     <script
-      src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"
-      integrity="sha384-hJnF5AwidE18GSWTAGHv3ByzzvfNZ1Tcx5y1UUV3WkauuMCEzBJBMSwSt/PUPXnM"
-      crossorigin="anonymous"
+      src="vendor/lucide.min.js"
     ></script>
-    <script src="src/utils/validators.js"></script>
-    <script src="src/ui/notifications.js"></script>
-    <script src="src/ui/loading.js"></script>
-    <script src="src/core/state.js"></script>
-    <script src="src/core/history.js"></script>
-    <script src="src/core/seal-library.js"></script>
-    <script src="src/core/batch-processing.js"></script>
-    <script src="src/core/settings.js"></script>
-    <script src="src/main.js"></script>
+    <script type="module" src="src/utils/validators.js"></script>
+    <script type="module" src="src/ui/notifications.js"></script>
+    <script type="module" src="src/ui/loading.js"></script>
+    <script type="module" src="src/core/state.js"></script>
+    <script type="module" src="src/core/history.js"></script>
+    <script type="module" src="src/core/seal-library.js"></script>
+    <script type="module" src="src/core/batch-processing.js"></script>
+    <script type="module" src="src/core/settings.js"></script>
+    <script type="module" src="src/main.js"></script>
 
     <!-- 签名模态框 -->
     <div id="signature-modal" class="modal hidden">
@@ -236,8 +354,8 @@
           <p class="modal-hint">请在上方区域书写您的签名</p>
         </div>
         <div class="modal-footer">
-          <button id="clear-signature-btn" class="btn btn-secondary">清除</button>
-          <button id="confirm-signature-btn" class="btn btn-primary">确认添加</button>
+          <button id="clear-signature-btn" class="btn btn-secondary">重写</button>
+          <button id="confirm-signature-btn" class="btn btn-primary">插入到当前页</button>
         </div>
       </div>
     </div>

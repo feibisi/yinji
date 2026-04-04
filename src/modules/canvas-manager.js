@@ -44,6 +44,10 @@ function getMainContent() {
   return document.getElementById('main-content');
 }
 
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
 /**
  * 设置指定页面的 Fabric 画布
  * @param {number} pageIndex
@@ -122,10 +126,8 @@ export async function initializeFabricCanvasForPage(pageNum, forceRecalculate = 
       })
       .promise;
 
-    fabricCanvas.setBackgroundImage(
-      new fabric.Image(tempCanvas),
-      fabricCanvas.renderAll.bind(fabricCanvas)
-    );
+    fabricCanvas.backgroundImage = new fabric.Image(tempCanvas);
+    fabricCanvas.requestRenderAll();
 
     setFabricCanvasAt(pageNum - 1, fabricCanvas);
   }
@@ -136,13 +138,36 @@ export async function initializeFabricCanvasForPage(pageNum, forceRecalculate = 
 /**
  * 应用缩放设置到当前页面画布
  */
-export function applyZoom() {
+export function applyZoom({ clientX = null, clientY = null } = {}) {
   const pdfDoc = getState().pdfDoc;
   if (!pdfDoc) return;
 
   const zoomMultiplier = getGlobalZoomMultiplier();
   const currentPage = getCurrentActivePage();
   const canvas = getCurrentPageCanvas();
+  const mainContent = getMainContent();
+  const wrapper = document.getElementById(`page-wrapper-${currentPage}`);
+
+  const shouldKeepPointerFocus =
+    Number.isFinite(clientX) &&
+    Number.isFinite(clientY) &&
+    Boolean(mainContent && wrapper);
+
+  let focusState = null;
+
+  if (shouldKeepPointerFocus) {
+    const mainRect = mainContent.getBoundingClientRect();
+    const wrapperRect = wrapper.getBoundingClientRect();
+
+    if (wrapperRect.width > 0 && wrapperRect.height > 0) {
+      focusState = {
+        offsetX: clientX - mainRect.left,
+        offsetY: clientY - mainRect.top,
+        relativeX: clamp((clientX - wrapperRect.left) / wrapperRect.width, 0, 1),
+        relativeY: clamp((clientY - wrapperRect.top) / wrapperRect.height, 0, 1),
+      };
+    }
+  }
 
   const zoomValue = document.getElementById('zoom-value');
   if (zoomValue) {
@@ -161,6 +186,23 @@ export function applyZoom() {
     });
 
     canvas.renderAll();
+
+    if (focusState) {
+      requestAnimationFrame(() => {
+        const mainRect = mainContent.getBoundingClientRect();
+        const wrapperRect = wrapper.getBoundingClientRect();
+
+        const wrapperLeft =
+          mainContent.scrollLeft + wrapperRect.left - mainRect.left;
+        const wrapperTop =
+          mainContent.scrollTop + wrapperRect.top - mainRect.top;
+
+        mainContent.scrollLeft =
+          wrapperLeft + wrapperRect.width * focusState.relativeX - focusState.offsetX;
+        mainContent.scrollTop =
+          wrapperTop + wrapperRect.height * focusState.relativeY - focusState.offsetY;
+      });
+    }
   }
 }
 
@@ -206,8 +248,14 @@ export async function showPage(pageNum, forceRecalculate = false) {
   );
   if (activeThumb) activeThumb.classList.add('active');
 
-  const pdfLoader = await import('./pdf-loader.js');
-  await pdfLoader.renderThumbnailForPage(pageNum);
+  const isVirtualThumbnailMode = Boolean(
+    document.querySelector('#thumbnail-container .virtual-thumbnail-items')
+  );
+
+  if (!isVirtualThumbnailMode) {
+    const pdfLoader = await import('./pdf-loader.js');
+    await pdfLoader.renderThumbnailForPage(pageNum);
+  }
 
   const wrapper = document.getElementById(`page-wrapper-${pageNum}`);
   if (wrapper) {

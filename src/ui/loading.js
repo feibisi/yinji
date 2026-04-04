@@ -90,7 +90,7 @@ function updateProgress(percent, text = '') {
  * Show loading for PDF operations
  * @param {string} message - Loading message
  */
-function showPdfLoading(message = '正在加载 PDF...') {
+function showPdfLoading(message = '正在加载文件...') {
   showLoading(message, false);
 }
 

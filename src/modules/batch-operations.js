@@ -1,10 +1,69 @@
 import { getState, setState } from '../core/state.js';
 import { getCurrentPageCanvas } from './canvas-manager.js';
+import { dataUrlToUint8Array } from '../utils/data-url.js';
 
 /**
  * 批量操作模块
  * 负责多页选择、批量添加/删除印章等功能
  */
+
+/**
+ * 兼容 Fabric 6 的图片加载
+ * @param {string} src
+ * @returns {Promise<fabric.Image>}
+ */
+async function loadFabricImage(src) {
+  try {
+    return await fabric.Image.fromURL(src, { crossOrigin: 'anonymous' });
+  } catch (error) {
+    return await fabric.Image.fromURL(src);
+  }
+}
+
+async function drawCanvasObjectsToPdfPage(pdfDoc, pdfPage, canvas) {
+  if (!canvas) return;
+
+  const { width: pageWidth, height: pageHeight } = pdfPage.getSize();
+  const objects = canvas
+    .getObjects()
+    .filter((obj) => !obj.isBackgroundImage);
+
+  for (const obj of objects) {
+    const multiplier = 2;
+    const imgDataUrl = obj.toDataURL({ format: 'png', multiplier });
+    const pngImageBytes = dataUrlToUint8Array(imgDataUrl);
+    const pngImage = await pdfDoc.embedPng(pngImageBytes);
+
+    const objWidth = obj.getScaledWidth();
+    const objHeight = obj.getScaledHeight();
+    let objLeft = obj.left;
+    let objTop = obj.top;
+
+    if (obj.originX === 'center') objLeft -= objWidth / 2;
+    if (obj.originY === 'center') objTop -= objHeight / 2;
+
+    const pdfX = (objLeft / canvas.originalWidth) * pageWidth;
+    const pdfY =
+      pageHeight - ((objTop + objHeight) / canvas.originalHeight) * pageHeight;
+
+    pdfPage.drawImage(pngImage, {
+      x: pdfX,
+      y: pdfY,
+      width: (objWidth / canvas.originalWidth) * pageWidth,
+      height: (objHeight / canvas.originalHeight) * pageHeight,
+      rotate: window.PDFLib.degrees(0),
+    });
+  }
+}
+
+function triggerPdfDownload(bytes, filename) {
+  const blob = new Blob([bytes], { type: 'application/pdf' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
 
 /**
  * 切换页面选中状态（Ctrl+Click 单个选择）
@@ -19,7 +78,7 @@ export function togglePageSelection(pageNum) {
     selectedPages.add(pageNum);
   }
 
-  setState({ selectedPages });
+  setState({ selectedPages, selectionAnchorPage: pageNum });
   updateSelectionUI();
 }
 
@@ -28,17 +87,18 @@ export function togglePageSelection(pageNum) {
  * @param {number} pageNum - 页面编号
  */
 export function selectPageRange(pageNum) {
-  const currentActive = getState().currentActivePage;
+  const anchorPage =
+    getState().selectionAnchorPage || getState().currentActivePage || pageNum;
   const selectedPages = new Set(getState().selectedPages);
 
-  const start = Math.min(currentActive, pageNum);
-  const end = Math.max(currentActive, pageNum);
+  const start = Math.min(anchorPage, pageNum);
+  const end = Math.max(anchorPage, pageNum);
 
   for (let i = start; i <= end; i++) {
     selectedPages.add(i);
   }
 
-  setState({ selectedPages });
+  setState({ selectedPages, selectionAnchorPage: pageNum });
   updateSelectionUI();
 }
 
@@ -53,7 +113,11 @@ export function selectAllPages() {
     selectedPages.add(i);
   }
 
-  setState({ selectedPages, isMultiSelectMode: true });
+  setState({
+    selectedPages,
+    isMultiSelectMode: true,
+    selectionAnchorPage: getState().currentActivePage || 1,
+  });
   updateSelectionUI();
 }
 
@@ -61,7 +125,11 @@ export function selectAllPages() {
  * 清除所有选中页面
  */
 export function clearSelection() {
-  setState({ selectedPages: new Set(), isMultiSelectMode: false });
+  setState({
+    selectedPages: new Set(),
+    isMultiSelectMode: false,
+    selectionAnchorPage: getState().currentActivePage || 1,
+  });
   updateSelectionUI();
 }
 
@@ -70,12 +138,54 @@ export function clearSelection() {
  * @param {boolean} enable
  */
 export function setMultiSelectMode(enable) {
-  setState({ isMultiSelectMode: enable });
-  const batchBtn = document.getElementById('batch-mode-btn');
-  if (batchBtn) {
-    batchBtn.classList.toggle('active', enable);
-    batchBtn.textContent = enable ? '退出批量模式' : '批量模式';
+  setState({
+    isMultiSelectMode: enable,
+    selectionAnchorPage: getState().selectionAnchorPage || getState().currentActivePage || 1,
+  });
+  updateSelectionUI();
+}
+
+/**
+ * 处理缩略图点击交互
+ * @param {number} pageNum
+ * @param {MouseEvent} event
+ * @returns {boolean}
+ */
+export function handleThumbnailInteraction(pageNum, event) {
+  const isMultiSelectMode = getState().isMultiSelectMode;
+
+  if (event.shiftKey) {
+    if (!isMultiSelectMode) {
+      setMultiSelectMode(true);
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    selectPageRange(pageNum);
+    return true;
   }
+
+  if (event.ctrlKey || event.metaKey) {
+    if (!isMultiSelectMode) {
+      setMultiSelectMode(true);
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    togglePageSelection(pageNum);
+    return true;
+  }
+
+  if (isMultiSelectMode) {
+    event.preventDefault();
+    event.stopPropagation();
+    togglePageSelection(pageNum);
+    return true;
+  }
+
+  return false;
+}
+
+export function refreshSelectionUI() {
+  updateSelectionUI();
 }
 
 /**
@@ -85,15 +195,28 @@ function updateSelectionUI() {
   const selectedPages = getState().selectedPages;
   const isMultiSelectMode = getState().isMultiSelectMode;
   const totalPages = getState().totalPages;
+  const selectedCount = document.getElementById('selected-count');
+  const batchBtn = document.getElementById('batch-mode-btn');
 
   // 更新页面指示器
   const pageIndicator = document.getElementById('page-indicator');
-  if (selectedPages.size > 0) {
-    const pages = Array.from(selectedPages).sort((a, b) => a - b);
+  if (pageIndicator && totalPages === 0) {
+    pageIndicator.textContent = '第 - / - 页';
+  } else if (pageIndicator && selectedPages.size > 0) {
     pageIndicator.textContent = `选中 ${selectedPages.size}/${totalPages} 页`;
-  } else {
+  } else if (pageIndicator) {
     const currentPage = getState().currentActivePage;
     pageIndicator.textContent = `第 ${currentPage} / ${totalPages} 页`;
+  }
+
+  if (batchBtn) {
+    batchBtn.classList.toggle('active', isMultiSelectMode);
+    batchBtn.textContent = isMultiSelectMode ? '结束多页选择' : '选多页';
+    batchBtn.disabled = totalPages === 0;
+  }
+
+  if (selectedCount) {
+    selectedCount.textContent = String(selectedPages.size);
   }
 
   // 更新缩略图视觉反馈
@@ -111,9 +234,10 @@ function updateSelectionUI() {
   });
 
   // 更新批量操作按钮状态
-  const batchActions = document.getElementById('batch-actions');
+  const batchActions = document.getElementById('batch-toolbar');
   if (batchActions) {
-    batchActions.style.display = selectedPages.size > 0 ? 'flex' : 'none';
+    batchActions.style.display =
+      isMultiSelectMode || selectedPages.size > 0 ? 'flex' : 'none';
   }
 
   // 更新选中页面列表显示
@@ -122,10 +246,22 @@ function updateSelectionUI() {
     if (selectedPages.size > 0) {
       const pages = Array.from(selectedPages).sort((a, b) => a - b);
       selectedPagesList.textContent = pages.join(', ');
+    } else if (isMultiSelectMode) {
+      selectedPagesList.textContent = '点击页面选择';
     } else {
       selectedPagesList.textContent = '';
     }
   }
+
+  [
+    document.getElementById('batch-add-seal-btn'),
+    document.getElementById('batch-delete-stamps-btn'),
+    document.getElementById('export-selected-btn'),
+  ].forEach((button) => {
+    if (button) {
+      button.disabled = selectedPages.size === 0;
+    }
+  });
 }
 
 /**
@@ -136,18 +272,18 @@ function updateSelectionUI() {
 export async function addSealToSelectedPages(sealImageElement, settings) {
   const selectedPages = getState().selectedPages;
   if (selectedPages.size === 0) {
-    window.Toast.warning('请先选择要添加印章的页面');
+    window.Toast.warning('先选中要盖章的页面。');
     return false;
   }
 
   const pdfDoc = getState().pdfDoc;
   if (!pdfDoc) {
-    window.Toast.warning('请先加载 PDF 文件');
+    window.Toast.warning('先加载文件。');
     return false;
   }
 
   if (!sealImageElement || !sealImageElement.src) {
-    window.Toast.warning('请先选择印章图片');
+    window.Toast.warning('先选择印章图片。');
     return false;
   }
 
@@ -173,7 +309,7 @@ export async function addSealToSelectedPages(sealImageElement, settings) {
     );
 
     const pages = Array.from(selectedPages).sort((a, b) => a - b);
-    const totalPages = pdfDoc.numPages;
+    const entries = [];
 
     for (let i = 0; i < pages.length; i++) {
       const pageNum = pages[i];
@@ -186,35 +322,34 @@ export async function addSealToSelectedPages(sealImageElement, settings) {
       if (!canvas) continue;
 
       // 创建印章图片对象
-      await new Promise((resolve) => {
-        fabric.Image.fromURL(rotatedSealUrl, (img) => {
-          img.scaleToWidth(canvas.originalWidth * settings.sealSize);
+      const img = await loadFabricImage(rotatedSealUrl);
+      img.scaleToWidth(canvas.originalWidth * settings.sealSize);
 
-          img.set({
-            left: canvas.originalWidth / 2,
-            top: canvas.originalHeight / 2,
-            originX: 'center',
-            originY: 'center',
-            cornerSize: 10,
-            cornerStyle: 'circle',
-            cornerColor: '#007bff',
-            transparentCorners: false,
-            borderColor: '#3b82f6',
-            lockRotation: true,
-            angle: 0,
-            opacity: settings.sealOpacity,
-          });
-
-          const command = new window.History.AddSealCommand(pageNum, img);
-          window.History.executeCommand(command);
-          canvas.renderAll();
-          resolve();
-        });
+      img.set({
+        left: canvas.originalWidth / 2,
+        top: canvas.originalHeight / 2,
+        originX: 'center',
+        originY: 'center',
+        cornerSize: 10,
+        cornerStyle: 'circle',
+        cornerColor: '#007bff',
+        transparentCorners: false,
+        borderColor: '#3b82f6',
+        lockRotation: true,
+        angle: 0,
+        opacity: settings.sealOpacity,
       });
+
+      entries.push({ pageNum, sealObject: img });
+    }
+
+    if (entries.length > 0) {
+      const command = new window.History.AddSealsCommand(entries);
+      window.History.executeCommand(command);
     }
 
     window.Loading.updateProgress(100, '完成！');
-    window.Toast.success(`已在 ${pages.length} 页添加印章`);
+    window.Toast.success(`已在 ${pages.length} 页盖章。第一页是第 ${pages[0]} 页。`);
 
     // 返回第一页被选中的页面
     window.showPage(pages[0]);
@@ -235,7 +370,7 @@ export async function addSealToSelectedPages(sealImageElement, settings) {
 export async function deleteAllStampsFromSelectedPages() {
   const selectedPages = getState().selectedPages;
   if (selectedPages.size === 0) {
-    window.Toast.warning('请先选择要删除印章的页面');
+    window.Toast.warning('先选中要删章的页面。');
     return false;
   }
 
@@ -245,6 +380,7 @@ export async function deleteAllStampsFromSelectedPages() {
     const { getFabricCanvases, initializeFabricCanvasForPage } = await import('./canvas-manager.js');
     const pages = Array.from(selectedPages).sort((a, b) => a - b);
     let totalDeleted = 0;
+    const entries = [];
 
     for (let i = 0; i < pages.length; i++) {
       const pageNum = pages[i];
@@ -252,7 +388,9 @@ export async function deleteAllStampsFromSelectedPages() {
       if (!canvas) continue;
 
       const objects = canvas.getObjects().filter((obj) => !obj.isBackgroundImage);
-      objects.forEach((obj) => canvas.remove(obj));
+      objects.forEach((sealObject) => {
+        entries.push({ pageNum, sealObject });
+      });
       totalDeleted += objects.length;
 
       window.Loading.updateProgress(
@@ -261,7 +399,12 @@ export async function deleteAllStampsFromSelectedPages() {
       );
     }
 
-    window.Toast.success(`已从 ${pages.length} 页删除 ${totalDeleted} 个印章`);
+    if (entries.length > 0) {
+      const command = new window.History.DeleteSealsCommand(entries);
+      window.History.executeCommand(command);
+    }
+
+    window.Toast.success(`已从 ${pages.length} 页删掉 ${totalDeleted} 个印章。`);
     window.Loading.hide();
     return true;
   } catch (error) {
@@ -274,7 +417,7 @@ export async function deleteAllStampsFromSelectedPages() {
 
 /**
  * 导出选中页面为 PDF
- * @param {File|null} originalFile - 原始 PDF 文件
+ * @param {File|null} originalFile - 原始文件
  * @param {string} exportMode - 'selected' (仅选中页) | 'all' (全部) | 'split' (分别导出)
  * @returns {Promise<boolean>}
  */
@@ -282,9 +425,10 @@ export async function exportSelectedPages(originalFile, exportMode = 'selected')
   const selectedPages = getState().selectedPages;
   const pdfDoc = getState().pdfDoc;
   const originalPdfBytes = getState().originalPdfBytes;
+  const sourcePdfFile = originalFile || getState().currentPdfFile;
 
   if (!pdfDoc || !originalPdfBytes) {
-    window.Toast.warning('请先加载 PDF 文件');
+    window.Toast.warning('先加载文件。');
     return false;
   }
 
@@ -297,65 +441,88 @@ export async function exportSelectedPages(originalFile, exportMode = 'selected')
       pagesToExport.push(i);
     }
   } else {
-    window.Toast.warning('请先选择要导出的页面');
+    window.Toast.warning('先选中要下载的页面。');
     return false;
   }
 
   if (pagesToExport.length === 0) {
-    window.Toast.warning('没有要导出的页面');
+    window.Toast.warning('没有可下载的页面。');
     return false;
   }
 
   window.Loading.showExportLoading('正在准备导出 PDF...');
 
   try {
-    const { PDFDocument} = window.PDFLib;
+    const { PDFDocument } = window.PDFLib;
+
+    // Load PDF with PDFLib (pdfDoc from state is PDF.js PDFDocumentProxy)
+    const originalPdfBytes = getState().originalPdfBytes;
+    if (!originalPdfBytes) {
+      window.Toast.warning('文件数据不存在');
+      window.Loading.hide();
+      return false;
+   }
+    const pdfLibDoc = await PDFDocument.load(originalPdfBytes);
 
     if (exportMode === 'split') {
       // 分别导出每个页面为独立文件
+      const fabricCanvases = getState().fabricCanvases;
+      const { sanitizeFilename } = await import('../utils/security.js');
+      const rawBaseName =
+        sourcePdfFile?.name?.replace(/\.(pdf|png|jpe?g)$/i, '') || 'document';
+      const baseName = sanitizeFilename(rawBaseName);
+
       for (let i = 0; i < pagesToExport.length; i++) {
         const pageNum = pagesToExport[i];
         const newPdf = await PDFDocument.create();
-        const [copiedPage] = await newPdf.copyPages(pdfDoc, [pageNum - 1]);
+        const [copiedPage] = await newPdf.copyPages(pdfLibDoc, [pageNum - 1]);
         newPdf.addPage(copiedPage);
 
+        const canvas = fabricCanvases[pageNum - 1];
+        if (canvas) {
+          await drawCanvasObjectsToPdfPage(newPdf, newPdf.getPages()[0], canvas);
+        }
+
         const bytes = await newPdf.save();
-        const blob = new Blob([bytes], { type: 'application/pdf' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        const baseName = originalFile?.name?.replace('.pdf', '') || 'document';
-        link.download = `${baseName}_page${pageNum}.pdf`;
-        link.click();
-        URL.revokeObjectURL(link.href);
+        triggerPdfDownload(bytes, `${baseName}_page${pageNum}.pdf`);
 
         window.Loading.updateProgress(
           ((i + 1) / pagesToExport.length) * 100,
           `导出第 ${i + 1}/${pagesToExport.length} 页`
         );
       }
-      window.Toast.success(`已导出 ${pagesToExport.length} 个独立文件`);
+      window.Toast.success(`已开始下载 ${pagesToExport.length} 个独立文件。`);
     } else {
-      // 合并导出为一个 PDF
+      // 合并导出为一个 PDF（含 Fabric.js 印章渲染）
       const newPdf = await PDFDocument.create();
       const pageIndices = pagesToExport.map(p => p - 1);
-      const copiedPages = await newPdf.copyPages(pdfDoc, pageIndices);
+      const copiedPages = await newPdf.copyPages(pdfLibDoc, pageIndices);
 
       copiedPages.forEach(page => newPdf.addPage(page));
 
-      window.Loading.updateProgress(80, '正在生成文件...');
-      const bytes = await newPdf.save();
-      const blob = new Blob([bytes], { type: 'application/pdf' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
+      // 渲染 Fabric.js 印章到对应页面
+      const fabricCanvases = getState().fabricCanvases;
+      for (let i = 0; i < pagesToExport.length; i++) {
+        const pageNum = pagesToExport[i];
+        const canvas = fabricCanvases[pageNum - 1];
+        if (!canvas) continue;
 
+        const pdfPage = newPdf.getPages()[i];
+        await drawCanvasObjectsToPdfPage(newPdf, pdfPage, canvas);
+
+        const progress = ((i + 1) / pagesToExport.length) * 80;
+        window.Loading.updateProgress(progress, `处理第 ${i + 1}/${pagesToExport.length} 页`);
+      }
+
+      window.Loading.updateProgress(90, '正在保存文件...');
+      const bytes = await newPdf.save();
       const { generateSafeExportFilename } = await import('../utils/security.js');
       const suffix = exportMode === 'selected' ? `_选中${pagesToExport.length}页` : '';
-      link.download = generateSafeExportFilename(originalFile, suffix);
+      const filename = generateSafeExportFilename(sourcePdfFile, suffix);
 
       window.Loading.updateProgress(100, '完成！');
-      link.click();
-      URL.revokeObjectURL(link.href);
-      window.Toast.success(`已导出 ${pagesToExport.length} 页`);
+      triggerPdfDownload(bytes, filename);
+      window.Toast.success(`已开始下载 ${pagesToExport.length} 页。`);
     }
 
     window.Loading.hide();

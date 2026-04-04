@@ -1,6 +1,6 @@
 import { getState, setState } from '../core/state.js';
 import { getCurrentPageCanvas } from './canvas-manager.js';
-import { getCurrentActivePage } from '../core/state.js';
+import { getCurrentActivePage } from './canvas-manager.js';
 
 /**
  * 印章管理模块
@@ -23,6 +23,39 @@ export function setSealImageElement(sealImageElement) {
   setState({ sealImageElement });
 }
 
+function updateSealPreview(src) {
+  const sealPreviewImg = document.getElementById('seal-preview');
+  const sealPlaceholder = document.getElementById('seal-placeholder');
+
+  if (!sealPreviewImg || !sealPlaceholder) {
+    return;
+  }
+
+  if (src) {
+    sealPreviewImg.src = src;
+    sealPreviewImg.classList.remove('hidden');
+    sealPlaceholder.classList.add('hidden');
+    return;
+  }
+
+  sealPreviewImg.src = '';
+  sealPreviewImg.classList.add('hidden');
+  sealPreviewImg.style.transform = '';
+  sealPreviewImg.style.filter = '';
+  sealPlaceholder.classList.remove('hidden');
+}
+
+export function clearSelectedSeal({
+  silent = false,
+} = {}) {
+  setSealImageElement(null);
+  updateSealPreview('');
+
+  if (!silent) {
+    window.Toast.success('已清除当前素材。');
+  }
+}
+
 /**
  * 获取印章旋转角度
  * @returns {number}
@@ -37,6 +70,19 @@ export function getSealRotation() {
  */
 export function getSealBrightness() {
   return getState().sealBrightness;
+}
+
+/**
+ * 兼容 Fabric 6 的图片加载
+ * @param {string} src
+ * @returns {Promise<fabric.Image>}
+ */
+async function loadFabricImage(src) {
+  try {
+    return await fabric.Image.fromURL(src, { crossOrigin: 'anonymous' });
+  } catch (error) {
+    return await fabric.Image.fromURL(src);
+  }
 }
 
 /**
@@ -97,17 +143,7 @@ export function handleSealFile(file) {
     const sealImageElement = new Image();
     sealImageElement.src = event.target.result;
     setSealImageElement(sealImageElement);
-
-    const sealPreviewImg = document.getElementById('seal-preview');
-    const sealPlaceholder = document.getElementById('seal-placeholder');
-
-    if (sealPreviewImg) {
-      sealPreviewImg.src = event.target.result;
-      sealPreviewImg.classList.remove('hidden');
-    }
-    if (sealPlaceholder) {
-      sealPlaceholder.classList.add('hidden');
-    }
+    updateSealPreview(event.target.result);
 
     sealImageElement.onload = () => {
       const dimValidation = window.Validators.validateImageDimensions(
@@ -115,17 +151,12 @@ export function handleSealFile(file) {
       );
       if (!dimValidation.valid) {
         window.Toast.error(dimValidation.error);
-        setSealImageElement(null);
-        if (sealPreviewImg) {
-          sealPreviewImg.src = '';
-          sealPreviewImg.classList.add('hidden');
-        }
-        if (sealPlaceholder) {
-          sealPlaceholder.classList.remove('hidden');
-        }
+        clearSelectedSeal({ silent: true });
         return;
       }
-      window.Toast.success('印章已准备好。');
+      window.Toast.success(
+        `${file.name} 已选好。现在可以盖普通章，或打开手写签名。`
+      );
     };
   };
 
@@ -153,14 +184,15 @@ export function addNormalSeal() {
   if (!canvas) return;
 
   const imageToProcess = new Image();
-  imageToProcess.onload = () => {
+  imageToProcess.onload = async () => {
     const rotatedSealUrl = getRotatedCroppedImage(
       imageToProcess,
       getSealRotation(),
       getSealBrightness()
     );
 
-    fabric.Image.fromURL(rotatedSealUrl, (img) => {
+    try {
+      const img = await loadFabricImage(rotatedSealUrl);
       const settings = window.Settings.getSettings();
 
       img.scaleToWidth(canvas.originalWidth * settings.sealSize);
@@ -186,7 +218,13 @@ export function addNormalSeal() {
       );
       window.History.executeCommand(command);
       canvas.setActiveObject(img);
-    });
+      window.Toast.success(
+        `已盖到第 ${getCurrentActivePage()} 页。现在可以拖动位置，或直接去导出。`
+      );
+    } catch (error) {
+      console.error('创建印章图片失败:', error);
+      window.Toast.error('创建印章失败，请重试。');
+    }
   };
 
   imageToProcess.onerror = () => {
@@ -227,6 +265,7 @@ export async function addStraddleSeal() {
       const totalPages = pdfDoc.numPages;
       const pieceWidth = sealImageElement.width / totalPages;
       const groupId = `straddle-${Date.now()}`;
+      const entries = [];
 
       const { getFabricCanvases, initializeFabricCanvasForPage } = await import('./canvas-manager.js');
 
@@ -257,7 +296,8 @@ export async function addStraddleSeal() {
             sealImageElement.height
           );
 
-        fabric.Image.fromURL(tempPieceCanvas.toDataURL(), (imgPiece) => {
+        try {
+          const imgPiece = await loadFabricImage(tempPieceCanvas.toDataURL());
           imgPiece.scale(initialScale);
           const scaledPieceWidth = pieceWidth * initialScale;
 
@@ -275,9 +315,6 @@ export async function addStraddleSeal() {
             angle: 0,
             opacity: settings.sealOpacity,
           });
-
-          canvas.add(imgPiece);
-          canvas.renderAll();
 
           const syncObjects = (target) => {
             getFabricCanvases()
@@ -302,8 +339,20 @@ export async function addStraddleSeal() {
 
           imgPiece.on('moving', () => syncObjects(imgPiece));
           imgPiece.on('scaling', () => syncObjects(imgPiece));
-        });
+          entries.push({ pageNum, sealObject: imgPiece });
+        } catch (error) {
+          console.error(`骑缝章第 ${pageNum} 页加载失败:`, error);
+        }
       }
+
+      if (entries.length === 0) {
+        window.Toast.error('骑缝章创建失败，请重试。');
+        return;
+      }
+
+      const command = new window.History.AddSealsCommand(entries);
+      window.History.executeCommand(command);
+      window.Toast.success(`已盖好骑缝章，共跨 ${entries.length} 页。`);
     };
   };
 
@@ -326,21 +375,28 @@ export async function deleteSelectedObject() {
     if (activeObject.straddleGroup) {
       const groupId = activeObject.straddleGroup;
       const { getFabricCanvases: getAllCanvases } = await import('./canvas-manager.js');
-      getAllCanvases().forEach((c) => {
+      const entries = [];
+      getAllCanvases().forEach((c, index) => {
         if (!c) return;
         c.getObjects()
           .filter((obj) => obj.straddleGroup === groupId)
-          .forEach((obj) => c.remove(obj));
-        c.renderAll();
+          .forEach((sealObject) => {
+            entries.push({ pageNum: index + 1, sealObject });
+          });
       });
-      window.Toast.success('已删除骑缝章');
+
+      if (entries.length > 0) {
+        const command = new window.History.DeleteSealsCommand(entries);
+        window.History.executeCommand(command);
+      }
+      window.Toast.success('已删除这组骑缝章。');
     } else {
       const command = new window.History.DeleteSealCommand(
         getCurrentActivePage(),
         activeObject
       );
       window.History.executeCommand(command);
-      window.Toast.success('已删除印章');
+      window.Toast.success(`已从第 ${getCurrentActivePage()} 页删掉选中的印章。`);
     }
   } else {
     window.Toast.warning('请先选择要删除的印章');
@@ -360,7 +416,9 @@ export function lockObject() {
     return false;
   }
 
-  activeObject.set({
+  const oldState = window.History.getObjectState(activeObject);
+  const newState = {
+    ...oldState,
     lockMovementX: true,
     lockMovementY: true,
     lockScalingX: true,
@@ -370,9 +428,17 @@ export function lockObject() {
     borderColor: '#f59e0b',
     cornerColor: '#ccc',
     cornerSize: 0,
-  });
+  };
+  const command = new window.History.ModifySealCommand(
+    getCurrentActivePage(),
+    activeObject,
+    oldState,
+    newState
+  );
+  window.History.executeCommand(command);
+  canvas.setActiveObject(activeObject);
   canvas.renderAll();
-  window.Toast.success('已锁定印章');
+  window.Toast.success('当前印章已锁定，拖动和缩放都不会再改动。');
   return true;
 }
 
@@ -389,19 +455,25 @@ export function unlockObject() {
     return false;
   }
 
-  // 骑缝章不解锁 lockMovementX（需要同步机制）
+  const oldState = window.History.getObjectState(activeObject);
+  let newState;
+
   if (activeObject.straddleGroup) {
-    activeObject.set({
+    newState = {
+      ...oldState,
+      lockMovementX: true,
+      lockMovementY: false,
       lockScalingX: false,
       lockScalingY: false,
-      lockRotation: false,
+      lockRotation: true,
       isLocked: false,
       borderColor: '#007bff',
       cornerColor: '#007bff',
       cornerSize: 10,
-    });
+    };
   } else {
-    activeObject.set({
+    newState = {
+      ...oldState,
       lockMovementX: false,
       lockMovementY: false,
       lockScalingX: false,
@@ -411,10 +483,19 @@ export function unlockObject() {
       borderColor: '#007bff',
       cornerColor: '#007bff',
       cornerSize: 10,
-    });
+    };
   }
+
+  const command = new window.History.ModifySealCommand(
+    getCurrentActivePage(),
+    activeObject,
+    oldState,
+    newState
+  );
+  window.History.executeCommand(command);
+  canvas.setActiveObject(activeObject);
   canvas.renderAll();
-  window.Toast.success('已解锁印章');
+  window.Toast.success('当前印章已解锁，现在可以继续拖动和缩放。');
   return true;
 }
 

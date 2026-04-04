@@ -1,0 +1,233 @@
+/* ==================== 锁定对象视觉提示 ==================== */
+
+.canvas-wrapper .canvas-container canvas.lower-canvas {
+  cursor: default;
+}
+
+/* ==================== 移动端响应式布局 ==================== */
+
+@media (max-width: 768px) {
+  body {
+    overflow: auto;
+  }
+
+  #app,
+  #app.sidebar-collapsed {
+    grid-template-columns: 1fr;
+    height: auto;
+    min-height: 100vh;
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .sidebar,
+  .main-content-wrapper,
+  .toolbar {
+    height: auto;
+  }
+
+  .sidebar {
+    max-height: 220px;
+    border-right: none;
+  }
+
+  .main-content-wrapper {
+    min-height: 60vh;
+  }
+
+  .toolbar {
+    min-height: 0;
+  }
+
+  .btn,
+  .icon-btn {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 8px;
+    font-size: 13px;
+  }
+
+  .canvas-wrapper {
+    margin: 0;
+    padding: 8px;
+  }
+
+  .sidebar-subtitle {
+    display: none;
+  }
+
+  .thumbnail-container {
+    display: flex;
+    flex-direction: row;
+    overflow-x: auto;
+    padding: 8px;
+    gap: 0.5rem;
+  }
+
+  .thumbnail-item {
+    min-width: 80px;
+    margin: 0;
+  }
+
+  .main-content-footer {
+    height: auto;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding: 0.875rem 1rem;
+  }
+
+  .zoom-controls,
+  .page-navigator {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .zoom-controls input[type='range'] {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .drop-zone {
+    padding: 1.5rem;
+  }
+
+  .drop-zone-prompt h2 {
+    font-size: 1.125rem;
+  }
+
+  .drop-zone-actions {
+    flex-direction: column;
+  }
+
+  .tool-section {
+    padding: 0.875rem;
+  }
+
+  .modal-content {
+    width: 95%;
+    max-width: none;
+    margin: 20px auto;
+  }
+
+  .shortcut-table {
+    font-size: 12px;
+  }
+
+  .shortcut-table th,
+  .shortcut-table td {
+    padding: 2px 4px;
+  }
+
+  .toast-container {
+    top: 10px;
+    right: 10px;
+    left: 10px;
+    max-width: none;
+  }
+
+  .toast {
+    font-size: 13px;
+    padding: 8px 12px;
+  }
+
+  .object-coords {
+    flex-wrap: wrap;
+  }
+
+  .batch-info {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .batch-info #selected-pages-list {
+    flex-basis: 100%;
+  }
+
+  .settings-modal-actions,
+  .settings-modal-tools,
+  .settings-modal-primary-actions,
+  .settings-modal-secondary-actions,
+  .app-dialog-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .workflow-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .workflow-actions,
+  .workflow-actions-compact {
+    grid-template-columns: 1fr;
+  }
+
+  .section-meta-line {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .precision-panel-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .toolbar-status-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .shortcut-modal-body {
+    grid-template-columns: 1fr;
+  }
+
+  .shortcut-key {
+    width: auto;
+    padding-right: 0;
+  }
+
+  .shortcut-table td {
+    display: block;
+    padding-bottom: 0.375rem;
+  }
+
+  .shortcut-table td + td {
+    padding-top: 0;
+  }
+
+  .app-modal-header,
+  .app-modal-body,
+  .app-modal-footer {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .shortcut-modal-header,
+  .shortcut-modal-body,
+  .shortcut-footer {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
+/* ==================== 超小屏幕 (手机) ==================== */
+
+@media (max-width: 480px) {
+  .sidebar-toggle-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .product-badge {
+    display: none;
+  }
+
+  .icon-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .canvas-container canvas {
+    touch-action: none;
+  }
+}

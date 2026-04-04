@@ -140,21 +140,26 @@ function showDialogModal({
 }) {
   return new Promise((resolve) => {
     const overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:31000;display:flex;align-items:center;justify-content:center;';
+    overlay.className = 'app-dialog-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
 
     const content = document.createElement('div');
-    content.style.cssText = 'background:white;border-radius:8px;padding:1.5rem;max-width:420px;width:90%;box-shadow:0 12px 32px rgba(0,0,0,0.2);';
+    content.className = 'app-dialog-content';
 
     const titleElement = document.createElement('h3');
     titleElement.textContent = title;
-    titleElement.style.cssText = 'margin:0 0 1rem;font-size:1.25rem;';
-    content.appendChild(titleElement);
+    titleElement.className = 'app-modal-title';
+
+    const body = document.createElement('div');
+    body.className = 'app-modal-body app-dialog-body';
+    body.appendChild(titleElement);
 
     if (message) {
       const messageElement = document.createElement('p');
       messageElement.textContent = message;
-      messageElement.style.cssText = 'margin:0 0 1rem;line-height:1.6;color:#333;';
-      content.appendChild(messageElement);
+      messageElement.className = 'app-dialog-message';
+      body.appendChild(messageElement);
     }
 
     let inputElement = null;
@@ -163,24 +168,27 @@ function showDialogModal({
       inputElement.type = 'text';
       inputElement.value = defaultValue;
       inputElement.placeholder = placeholder;
-      inputElement.style.cssText = 'width:100%;padding:0.75rem;border:1px solid #ced4da;border-radius:4px;font-size:1rem;box-sizing:border-box;margin-bottom:1rem;';
-      content.appendChild(inputElement);
+      inputElement.className = 'app-dialog-input';
+      body.appendChild(inputElement);
     }
 
     const actionRow = document.createElement('div');
-    actionRow.style.cssText = 'display:flex;gap:0.75rem;justify-content:flex-end;';
+    actionRow.className = 'app-dialog-actions';
 
     const cancelButton = document.createElement('button');
     cancelButton.textContent = cancelText;
-    cancelButton.style.cssText = 'padding:0.75rem 1rem;background:#6c757d;color:white;border:none;border-radius:4px;cursor:pointer;font-weight:600;';
+    cancelButton.type = 'button';
+    cancelButton.className = 'btn btn-secondary';
 
     const confirmButton = document.createElement('button');
     confirmButton.textContent = confirmText;
-    confirmButton.style.cssText = `padding:0.75rem 1rem;background:${danger ? '#dc3545' : '#007bff'};color:white;border:none;border-radius:4px;cursor:pointer;font-weight:600;`;
+    confirmButton.type = 'button';
+    confirmButton.className = danger ? 'btn btn-danger' : 'btn btn-primary';
 
     actionRow.appendChild(cancelButton);
     actionRow.appendChild(confirmButton);
-    content.appendChild(actionRow);
+    body.appendChild(actionRow);
+    content.appendChild(body);
     overlay.appendChild(content);
 
     const closeDialog = (result) => {
@@ -275,14 +283,27 @@ function getSettings() {
  * Save settings to localStorage
  * @param {Object} settings - Settings object
  */
-function saveSettings(settings) {
+function saveSettings(settings, options = {}) {
+  const { silent = false } = options;
+
   try {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-    window.Toast?.success('设置已保存');
+    const normalizedSettings = sanitizeSettings(settings);
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(normalizedSettings));
+    window.dispatchEvent(
+      new CustomEvent('pdf-stamper:settings-updated', {
+        detail: normalizedSettings,
+      })
+    );
+
+    if (!silent) {
+      window.Toast?.success('设置已保存');
+    }
     return true;
   } catch (error) {
     console.error('保存设置失败:', error);
-    window.Toast?.error('保存设置失败');
+    if (!silent) {
+      window.Toast?.error('保存设置失败');
+    }
     return false;
   }
 }
@@ -325,7 +346,7 @@ function exportSettings() {
 
   const link = document.createElement('a');
   link.href = url;
-  link.download = 'pdf-stamper-settings.json';
+  link.download = 'yinji-settings.json';
   link.click();
 
   URL.revokeObjectURL(url);
@@ -367,58 +388,102 @@ function importSettings(file) {
  * Show settings modal
  */
 function showSettingsModal() {
+  const existingModal = document.getElementById('settings-modal');
+  if (existingModal) {
+    existingModal.remove();
+  }
+
   const settings = getSettings();
 
   const modal = document.createElement('div');
   modal.id = 'settings-modal';
-  modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:30000;display:flex;align-items:center;justify-content:center;';
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
 
   const content = document.createElement('div');
-  content.style.cssText = 'background:white;border-radius:8px;padding:2rem;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;';
+  content.className = 'settings-modal-content';
 
   content.innerHTML = `
-    <h2 style="margin-bottom:1.5rem;">设置</h2>
-
-    <div style="margin-bottom:1.5rem;">
-      <label style="display:block;margin-bottom:0.5rem;font-weight:600;">默认印章大小</label>
-      <input type="range" id="setting-seal-size" min="0.1" max="0.5" step="0.05" style="width:100%;">
-      <span id="seal-size-value"></span>
+    <div class="app-modal-header">
+      <div class="settings-modal-header">
+        <div class="app-modal-header-copy">
+          <h2 class="app-modal-title">设置</h2>
+          <p class="app-modal-subtitle">调整默认印章参数和本地偏好。这里只改默认值，不会覆盖已经放到页面上的印章。</p>
+        </div>
+        <button id="close-settings-icon-btn" type="button" class="app-modal-close-btn" aria-label="关闭设置">&times;</button>
+      </div>
     </div>
 
-    <div style="margin-bottom:1.5rem;">
-      <label style="display:block;margin-bottom:0.5rem;font-weight:600;">默认旋转角度</label>
-      <input type="range" id="setting-rotation" min="-180" max="180" step="1" style="width:100%;">
-      <span id="rotation-value"></span>
+    <div class="app-modal-body">
+      <div class="settings-form">
+        <div class="settings-field">
+          <div class="settings-field-header">
+            <label class="settings-field-label" for="setting-seal-size">默认印章大小</label>
+            <span class="settings-field-value" id="seal-size-value"></span>
+          </div>
+          <input type="range" id="setting-seal-size" min="0.1" max="0.5" step="0.05">
+          <p class="settings-field-hint">按页面宽度比例决定新印章的初始大小。</p>
+        </div>
+
+        <div class="settings-field">
+          <div class="settings-field-header">
+            <label class="settings-field-label" for="setting-rotation">默认旋转角度</label>
+            <span class="settings-field-value" id="rotation-value"></span>
+          </div>
+          <input type="range" id="setting-rotation" min="-180" max="180" step="1">
+          <p class="settings-field-hint">新印章放到页面时，会先按这个角度旋转。</p>
+        </div>
+
+        <div class="settings-field">
+          <div class="settings-field-header">
+            <label class="settings-field-label" for="setting-opacity">印章透明度</label>
+            <span class="settings-field-value" id="opacity-value"></span>
+          </div>
+          <input type="range" id="setting-opacity" min="0.1" max="1" step="0.1">
+          <p class="settings-field-hint">降低透明度后，更适合叠在已有内容上。</p>
+        </div>
+
+        <label class="settings-field settings-checkbox-field">
+          <input type="checkbox" id="setting-auto-save">
+          <span class="settings-checkbox-copy">
+            <span class="settings-checkbox-title">自动保存设置</span>
+            <span class="settings-checkbox-hint">修改后立刻写入本地浏览器，不必再手动保存。</span>
+          </span>
+        </label>
+      </div>
     </div>
 
-    <div style="margin-bottom:1.5rem;">
-      <label style="display:block;margin-bottom:0.5rem;font-weight:600;">印章透明度</label>
-      <input type="range" id="setting-opacity" min="0.1" max="1" step="0.1" style="width:100%;">
-      <span id="opacity-value"></span>
-    </div>
+    <div class="app-modal-footer settings-modal-footer">
+      <div class="settings-modal-primary-actions">
+        <button id="save-settings-btn" type="button" class="btn btn-primary">保存设置</button>
+        <button id="close-settings-btn" type="button" class="btn btn-secondary">关闭</button>
+      </div>
 
-    <div style="margin-bottom:1.5rem;">
-      <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
-        <input type="checkbox" id="setting-auto-save">
-        <span>自动保存设置</span>
-      </label>
-    </div>
+      <div class="settings-modal-secondary-actions">
+        <button id="reset-settings-btn" type="button" class="btn btn-danger-soft">重置默认值</button>
+        <button id="export-settings-btn" type="button" class="btn btn-tertiary">导出设置</button>
+        <button id="import-settings-btn" type="button" class="btn btn-tertiary">导入设置</button>
+      </div>
 
-    <div style="display:flex;gap:0.5rem;margin-top:2rem;">
-      <button id="save-settings-btn" style="flex:1;padding:0.75rem;background:#007bff;color:white;border:none;border-radius:4px;cursor:pointer;font-weight:600;">保存</button>
-      <button id="reset-settings-btn" style="flex:1;padding:0.75rem;background:#6c757d;color:white;border:none;border-radius:4px;cursor:pointer;font-weight:600;">重置</button>
-      <button id="close-settings-btn" style="flex:1;padding:0.75rem;background:#dc3545;color:white;border:none;border-radius:4px;cursor:pointer;font-weight:600;">关闭</button>
-    </div>
-
-    <div style="display:flex;gap:0.5rem;margin-top:1rem;">
-      <button id="export-settings-btn" style="flex:1;padding:0.5rem;background:#28a745;color:white;border:none;border-radius:4px;cursor:pointer;font-size:0.875rem;">导出设置</button>
-      <button id="import-settings-btn" style="flex:1;padding:0.5rem;background:#17a2b8;color:white;border:none;border-radius:4px;cursor:pointer;font-size:0.875rem;">导入设置</button>
       <input type="file" id="import-settings-input" accept=".json" hidden>
     </div>
   `;
 
   modal.appendChild(content);
   document.body.appendChild(modal);
+
+  const closeModal = () => {
+    document.removeEventListener('keydown', handleKeydown);
+    modal.remove();
+  };
+
+  const handleKeydown = (event) => {
+    if (event.key === 'Escape') {
+      closeModal();
+    }
+  };
+
+  document.addEventListener('keydown', handleKeydown);
 
   // Update value displays
   const sealSizeInput = content.querySelector('#setting-seal-size');
@@ -437,45 +502,77 @@ function showSettingsModal() {
   rotationValue.textContent = `${settings.sealRotation}°`;
   opacityValue.textContent = `${Math.round(settings.sealOpacity * 100)}%`;
 
+  const getDraftSettings = () => ({
+    sealSize: parseFloat(sealSizeInput.value),
+    sealRotation: parseInt(rotationInput.value, 10),
+    sealOpacity: parseFloat(opacityInput.value),
+    autoSave: autoSaveInput.checked,
+    exportFormat: settings.exportFormat,
+    exportQuality: settings.exportQuality,
+  });
+
+  const persistDraftIfAutoSave = () => {
+    if (autoSaveInput.checked) {
+      saveSettings(getDraftSettings(), { silent: true });
+    }
+  };
+
   sealSizeInput.addEventListener('input', (e) => {
     sealSizeValue.textContent = Math.round(e.target.value * 100) + '%';
+    persistDraftIfAutoSave();
   });
 
   rotationInput.addEventListener('input', (e) => {
     rotationValue.textContent = e.target.value + '°';
+    persistDraftIfAutoSave();
   });
 
   opacityInput.addEventListener('input', (e) => {
     opacityValue.textContent = Math.round(e.target.value * 100) + '%';
+    persistDraftIfAutoSave();
+  });
+
+  autoSaveInput.addEventListener('change', () => {
+    if (autoSaveInput.checked) {
+      saveSettings(getDraftSettings(), { silent: true });
+      window.Toast?.info('已开启自动保存。后续修改会直接写入本地设置。');
+      return;
+    }
+
+    const currentSettings = getSettings();
+    saveSettings(
+      {
+        ...currentSettings,
+        autoSave: false,
+      },
+      { silent: true }
+    );
+    window.Toast?.info('已关闭自动保存。');
   });
 
   // Save button
   content.querySelector('#save-settings-btn').addEventListener('click', () => {
-    const newSettings = {
-      sealSize: parseFloat(sealSizeInput.value),
-      sealRotation: parseInt(rotationInput.value, 10),
-      sealOpacity: parseFloat(opacityInput.value),
-      autoSave: autoSaveInput.checked,
-      exportFormat: settings.exportFormat,
-      exportQuality: settings.exportQuality,
-    };
+    const newSettings = getDraftSettings();
 
     if (saveSettings(newSettings)) {
-      modal.remove();
+      closeModal();
     }
   });
 
   // Reset button
   content.querySelector('#reset-settings-btn').addEventListener('click', async () => {
     if (await resetSettings()) {
-      modal.remove();
+      closeModal();
       showSettingsModal();
     }
   });
 
   // Close button
   content.querySelector('#close-settings-btn').addEventListener('click', () => {
-    modal.remove();
+    closeModal();
+  });
+  content.querySelector('#close-settings-icon-btn').addEventListener('click', () => {
+    closeModal();
   });
 
   // Export button
@@ -496,7 +593,7 @@ function showSettingsModal() {
   // Close on background click
   modal.addEventListener('click', (e) => {
     if (e.target === modal) {
-      modal.remove();
+      closeModal();
     }
   });
 }

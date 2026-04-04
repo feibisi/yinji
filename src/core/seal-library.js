@@ -50,17 +50,17 @@ function saveSealsTolocalStorage(seals) {
 function addSealToLibrary(name, imageData, settings = {}) {
   const seals = getSavedSeals();
 
-  // Check if library is full
-  if (seals.length >= MAX_SEALS) {
-    window.Toast?.warning(`印章库已满，最多保存 ${MAX_SEALS} 个印章`);
-    return false;
-  }
-
-  // Check if name already exists (offer overwrite)
+  // Check if name already exists (offer overwrite) - MUST check BEFORE full check
   const existingIndex = seals.findIndex(seal => seal.name === name);
   if (existingIndex !== -1) {
     window.Toast?.warning('印章名称已存在，将覆盖旧版本');
     seals.splice(existingIndex, 1);
+  }
+
+  // Check if library is full (after name check, so overwrite still works)
+  if (seals.length >= MAX_SEALS) {
+    window.Toast?.warning(`印章库已满，最多保存 ${MAX_SEALS} 个印章`);
+    return false;
   }
 
   // Add new seal with full settings
@@ -148,12 +148,22 @@ function renderSealLibrary() {
   if (!container) return;
 
   const seals = getSavedSeals();
+  const emitLibraryUpdate = () => {
+    document.dispatchEvent(
+      new CustomEvent('pdf-stamper:seal-library-updated', {
+        detail: {
+          count: seals.length,
+        },
+      })
+    );
+  };
 
   if (seals.length === 0) {
     const emptyState = document.createElement('p');
     emptyState.className = 'seal-library-empty';
     emptyState.textContent = '暂无保存的印章';
     container.replaceChildren(emptyState);
+    emitLibraryUpdate();
     return;
   }
 
@@ -209,6 +219,7 @@ function renderSealLibrary() {
   });
 
   container.replaceChildren(grid);
+  emitLibraryUpdate();
 }
 
 /**
@@ -231,6 +242,20 @@ function loadAndApplySeal(sealId) {
     sealPreviewImg.src = seal.imageData;
     sealPreviewImg.classList.remove('hidden');
     sealPlaceholder.classList.add('hidden');
+
+    const currentSettings = window.Settings.getSettings();
+    window.Settings.saveSettings(
+      {
+        ...currentSettings,
+        sealOpacity: Number.isFinite(seal.opacity)
+          ? seal.opacity
+          : currentSettings.sealOpacity,
+        sealSize: Number.isFinite(seal.size)
+          ? seal.size
+          : currentSettings.sealSize,
+      },
+      { silent: true }
+    );
 
     const sealImageElement = new Image();
     sealImageElement.src = seal.imageData;

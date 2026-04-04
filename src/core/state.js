@@ -12,6 +12,12 @@ const appState = {
   /** @type {Uint8Array|null} 原始PDF字节数据 */
   originalPdfBytes: null,
 
+  /** @type {File|null} 当前 PDF 文件 */
+  currentPdfFile: null,
+
+  /** @type {'pdf'|'image'|null} 当前文件来源类型 */
+  currentSourceKind: null,
+
   /** @type {fabric.Canvas[]} Fabric画布数组，每个页面一个 */
   fabricCanvases: [],
 
@@ -41,6 +47,9 @@ const appState = {
 
   /** @type {boolean} 是否处于批量选择模式 */
   isMultiSelectMode: false,
+
+  /** @type {number} 批量选择时的范围锚点页 */
+  selectionAnchorPage: 1,
 };
 
 const stateListeners = new Set();
@@ -86,6 +95,9 @@ function subscribe(listener) {
 
 // ==================== Exports ====================
 
+export { getState, setState, subscribe };
+
+// Keep window.AppState for backwards compatibility
 window.AppState = {
   getState,
   setState,

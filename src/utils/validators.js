@@ -7,6 +7,7 @@
 
 const FILE_SIZE_LIMITS = {
   PDF: 50 * 1024 * 1024,    // 50MB
+  DOCUMENT_IMAGE: 20 * 1024 * 1024, // 20MB
   IMAGE: 5 * 1024 * 1024,   // 5MB
 };
 
@@ -16,8 +17,29 @@ const PAGE_LIMITS = {
 
 const ALLOWED_TYPES = {
   PDF: ['application/pdf'],
+  DOCUMENT_IMAGE: ['image/png', 'image/jpeg', 'image/jpg'],
   IMAGE: ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp', 'image/svg+xml'],
 };
+
+function isPdfLikeFile(file) {
+  return Boolean(
+    file &&
+    (
+      ALLOWED_TYPES.PDF.includes(file.type) ||
+      /\.pdf$/i.test(file.name || '')
+    )
+  );
+}
+
+function isDocumentImageFile(file) {
+  return Boolean(
+    file &&
+    (
+      ALLOWED_TYPES.DOCUMENT_IMAGE.includes(file.type) ||
+      /\.(png|jpe?g)$/i.test(file.name || '')
+    )
+  );
+}
 
 // ==================== Validation Functions ====================
 
@@ -33,7 +55,7 @@ function validatePdfFile(file) {
   }
 
   // Check file type
-  if (!ALLOWED_TYPES.PDF.includes(file.type)) {
+  if (!isPdfLikeFile(file)) {
     return { valid: false, error: '请选择有效的 PDF 文件' };
   }
 
@@ -49,6 +71,34 @@ function validatePdfFile(file) {
   // Check if file is empty
   if (file.size === 0) {
     return { valid: false, error: 'PDF 文件为空' };
+  }
+
+  return { valid: true, error: null };
+}
+
+function validateDocumentFile(file) {
+  if (!file) {
+    return { valid: false, error: '请选择一个文件' };
+  }
+
+  if (isPdfLikeFile(file)) {
+    return validatePdfFile(file);
+  }
+
+  if (!isDocumentImageFile(file)) {
+    return { valid: false, error: '请选择 PDF、PNG 或 JPG 文件' };
+  }
+
+  if (file.size > FILE_SIZE_LIMITS.DOCUMENT_IMAGE) {
+    const sizeMB = (file.size / 1024 / 1024).toFixed(1);
+    return {
+      valid: false,
+      error: `图片文件过大（${sizeMB}MB），请选择小于 20MB 的 PNG 或 JPG 文件`
+    };
+  }
+
+  if (file.size === 0) {
+    return { valid: false, error: '图片文件为空' };
   }
 
   return { valid: true, error: null };
@@ -137,6 +187,7 @@ function validateImageDimensions(image) {
 // Export for use in main.js
 window.Validators = {
   validatePdfFile,
+  validateDocumentFile,
   validateImageFile,
   validatePageCount,
   validateImageDimensions,

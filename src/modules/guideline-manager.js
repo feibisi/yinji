@@ -8,10 +8,11 @@ import { getCurrentPageCanvas } from './canvas-manager.js';
 // ==================== 配置 ====================
 
 const CONFIG = {
-  SNAP_THRESHOLD: 5,      // px, 自动吸附容差
-  GUIDE_COLOR: '#007bff',
-  GUIDE_WIDTH: 1,
-  GUIDE_DASH: [5, 5],
+  SNAP_THRESHOLD: 10,     // px, 自动吸附容差
+  GUIDE_COLOR: '#2563eb',
+  GUIDE_OPACITY: 0.95,
+  GUIDE_WIDTH: 2,
+  GUIDE_DASH: [8, 4],
 };
 
 // ==================== 状态 ====================
@@ -19,6 +20,7 @@ const CONFIG = {
 let _guides = [];         // 当前画布上的辅助线对象
 let _guideObjects = [];   // 对齐用参考对象集合
 let _enabled = true;
+const _boundCanvases = new WeakSet();
 
 // ==================== 模块初始化/销毁 ====================
 
@@ -27,13 +29,14 @@ let _enabled = true;
  * @param {fabric.Canvas} canvas
  */
 export function initOn(canvas) {
-  if (!canvas) return;
+  if (!canvas || _boundCanvases.has(canvas)) return;
   canvas.on('object:moving', _onObjectMoving);
   canvas.on('object:scaling', _onObjectScaling);
   canvas.on('selection:created', _updateGuideObjects);
   canvas.on('selection:updated', _updateGuideObjects);
   canvas.on('selection:cleared', _updateGuideObjects);
-  canvas.on('mouse:up', () => _clearGuides());
+  canvas.on('mouse:up', _handleMouseUp);
+  _boundCanvases.add(canvas);
 }
 
 /**
@@ -47,7 +50,8 @@ export function destroyOn(canvas) {
   canvas.off('selection:created', _updateGuideObjects);
   canvas.off('selection:updated', _updateGuideObjects);
   canvas.off('selection:cleared', _updateGuideObjects);
-  canvas.off('mouse:up', _clearGuides);
+  canvas.off('mouse:up', _handleMouseUp);
+  _boundCanvases.delete(canvas);
 }
 
 /**
@@ -75,10 +79,16 @@ function _onObjectScaling() {
   _clearGuides();
 }
 
+function _handleMouseUp() {
+  _clearGuides();
+}
+
 function _updateGuideObjects() {
   const canvas = getCurrentPageCanvas();
   if (!canvas) return;
-  _guideObjects = canvas.getObjects().filter((obj) => !obj.isLocked);
+  _guideObjects = canvas
+    .getObjects()
+    .filter((obj) => !obj.isLocked && !obj.excludeFromExport);
 }
 
 function _snapAndShowGuides(e) {
@@ -203,6 +213,7 @@ function _drawGuides(guides, canvas) {
         [guide.x * zoom, -10 * zoom, guide.x * zoom, canvas.getHeight() + 10 * zoom],
         {
           stroke: CONFIG.GUIDE_COLOR,
+          opacity: CONFIG.GUIDE_OPACITY,
           strokeWidth: CONFIG.GUIDE_WIDTH,
           strokeDashArray: CONFIG.GUIDE_DASH,
           selectable: false,
@@ -216,6 +227,7 @@ function _drawGuides(guides, canvas) {
         [-10 * zoom, guide.y * zoom, canvas.getWidth() + 10 * zoom, guide.y * zoom],
         {
           stroke: CONFIG.GUIDE_COLOR,
+          opacity: CONFIG.GUIDE_OPACITY,
           strokeWidth: CONFIG.GUIDE_WIDTH,
           strokeDashArray: CONFIG.GUIDE_DASH,
           selectable: false,

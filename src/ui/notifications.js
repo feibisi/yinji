@@ -46,6 +46,10 @@ function initToastContainer() {
 function showToast(message, type = TOAST_TYPES.INFO, duration = TOAST_DURATION.MEDIUM) {
   initToastContainer();
 
+  if (toastContainer) {
+    toastContainer.replaceChildren();
+  }
+
   // Create toast element
   const toast = document.createElement('div');
   toast.className = `toast toast-${type}`;
@@ -73,6 +77,12 @@ function showToast(message, type = TOAST_TYPES.INFO, duration = TOAST_DURATION.M
 
   // Add to container
   toastContainer.appendChild(toast);
+
+  document.dispatchEvent(
+    new CustomEvent('pdf-stamper:toast-shown', {
+      detail: { message, type, duration },
+    })
+  );
 
   // Trigger animation
   setTimeout(() => toast.classList.add('toast-show'), 10);

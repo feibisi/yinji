@@ -1,4 +1,5 @@
 import { getState, setState } from '../core/state.js';
+import { handleThumbnailInteraction } from './batch-operations.js';
 
 /**
  * PDF 加载与管理模块
@@ -8,6 +9,93 @@ import { getState, setState } from '../core/state.js';
 const INITIAL_RENDERED_THUMBNAILS = 3;
 const THUMBNAIL_RENDER_BUFFER = 240;
 let thumbnailRenderFrameId = null;
+let activeLoadRequestId = 0;
+
+function createStaleLoadError() {
+  const error = new Error('PDF load request is stale');
+  error.code = 'PDF_LOAD_STALE';
+  return error;
+}
+
+function assertActiveLoad(requestId) {
+  if (requestId !== activeLoadRequestId) {
+    throw createStaleLoadError();
+  }
+}
+
+function readFileAsBytes(file) {
+  return new Promise((resolve, reject) => {
+    const fileReader = new FileReader();
+
+    fileReader.onload = (event) => {
+      resolve(new Uint8Array(event.target.result));
+    };
+
+    fileReader.onerror = () => {
+      reject(new Error('文件读取失败，请重试。'));
+    };
+
+    fileReader.onabort = () => {
+      reject(new Error('文件读取已取消。'));
+    };
+
+    fileReader.readAsArrayBuffer(file);
+  });
+}
+
+function getSourceKind(file) {
+  if (!file) {
+    return null;
+  }
+
+  if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '')) {
+    return 'pdf';
+  }
+
+  if (
+    ['image/png', 'image/jpeg', 'image/jpg'].includes(file.type) ||
+    /\.(png|jpe?g)$/i.test(file.name || '')
+  ) {
+    return 'image';
+  }
+
+  return null;
+}
+
+async function createPdfBytesFromImage(file, imageBytes) {
+  const { PDFDocument } = window.PDFLib;
+  const pdfDoc = await PDFDocument.create();
+
+  const embeddedImage =
+    file.type === 'image/png' || /\.png$/i.test(file.name || '')
+      ? await pdfDoc.embedPng(imageBytes)
+      : await pdfDoc.embedJpg(imageBytes);
+
+  const { width, height } = embeddedImage.scale(1);
+  const page = pdfDoc.addPage([width, height]);
+
+  page.drawImage(embeddedImage, {
+    x: 0,
+    y: 0,
+    width,
+    height,
+  });
+
+  return new Uint8Array(await pdfDoc.save());
+}
+
+function resetPageNavigator() {
+  const pageIndicator = document.getElementById('page-indicator');
+  const pageSelector = document.getElementById('page-selector');
+
+  if (pageIndicator) {
+    pageIndicator.textContent = '第 - / - 页';
+  }
+
+  if (pageSelector) {
+    pageSelector.innerHTML = '';
+  }
+}
 
 /**
  * 获取 PDF 文档对象
@@ -58,71 +146,108 @@ export function setTotalPages(totalPages) {
 }
 
 /**
- * 处理 PDF 文件上传
- * @param {File} file - PDF 文件对象
+ * 处理单个文件上传
+ * @param {File} file - PDF 或图片文件对象
  * @param {Object} callbacks - 回调函数集合
  */
 export async function handlePdfFile(
   file,
-  { onLoadingStart, onLoadingEnd, onError, onPagesRendered }
+  {
+    onLoadingStart = () => {},
+    onLoadingEnd = () => {},
+    onError = () => {},
+    onPagesRendered = () => {},
+  } = {}
 ) {
-  const validation = window.Validators.validatePdfFile(file);
+  const validation = window.Validators.validateDocumentFile(file);
   if (!validation.valid) {
     onError(validation.error);
+    onLoadingEnd(false);
     return;
   }
 
+  const sourceKind = getSourceKind(file);
+  const requestId = ++activeLoadRequestId;
   cleanupAllResources();
-  onLoadingStart('正在加载 PDF...');
+  setState({
+    currentPdfFile: file,
+    currentSourceKind: sourceKind,
+  });
+  onLoadingStart(sourceKind === 'image' ? '正在加载图片...' : '正在加载文件...');
 
-  const fileReader = new FileReader();
-  fileReader.onload = async (e) => {
-    setOriginalPdfBytes(new Uint8Array(e.target.result));
+  try {
+    const sourceBytes = await readFileAsBytes(file);
+    assertActiveLoad(requestId);
 
-    try {
-      const pdfDoc = await pdfjsLib.getDocument({
-        data: getOriginalPdfBytes().slice(),
-      }).promise;
+    const originalPdfBytes =
+      sourceKind === 'image'
+        ? await createPdfBytesFromImage(file, sourceBytes)
+        : sourceBytes;
 
-      setPdfDoc(pdfDoc);
-      setTotalPages(pdfDoc.numPages);
+    setOriginalPdfBytes(originalPdfBytes);
 
-      const pageValidation = window.Validators.validatePageCount(
-        getTotalPages()
-      );
-      if (!pageValidation.valid) {
-        onError(pageValidation.error);
-        onLoadingEnd();
-        return;
+    const pdfDoc = await pdfjsLib.getDocument({
+      data: originalPdfBytes.slice(),
+    }).promise;
+    assertActiveLoad(requestId);
+
+    setPdfDoc(pdfDoc);
+    setTotalPages(pdfDoc.numPages);
+
+    const pageValidation = window.Validators.validatePageCount(pdfDoc.numPages);
+    if (!pageValidation.valid) {
+      try {
+        await pdfDoc.destroy?.();
+      } catch (destroyError) {
+        console.warn('清理无效 PDF 资源时出错:', destroyError);
       }
-
-      setState({
-        fabricCanvases: new Array(getTotalPages()).fill(null),
-        pageFitScales: new Array(getTotalPages()).fill(null),
-      });
-
-      // When virtual scroller is enabled, skip rendering all pages
-      // Virtual scroller will handle on-demand rendering
-      const { getVirtualScrollerState } = await import('./thumbnail-virtual-scroller.js');
-      const vState = getVirtualScrollerState();
-
-      if (vState) {
-        // Virtual scroller mode: just create sidebar items, no canvas rendering
-        createThumbnailList(getTotalPages());
-      } else {
-        // Fallback: traditional mode
-        await renderAllPages(onPagesRendered);
-      }
-
-      onLoadingEnd();
-    } catch (error) {
-      console.error('加载 PDF 失败:', error);
-      onError('PDF 加载失败，请检查文件。');
-      onLoadingEnd();
+      cleanupAllResources();
+      onError(pageValidation.error);
+      onLoadingEnd(false);
+      return;
     }
-  };
 
-  fileReader.readAsArrayBuffer(file);
+    setState({
+      fabricCanvases: new Array(pdfDoc.numPages).fill(null),
+      pageFitScales: new Array(pdfDoc.numPages).fill(null),
+    });
+
+    const {
+      getVirtualScrollerState,
+      refreshVirtualScroller,
+    } = await import('./thumbnail-virtual-scroller.js');
+    assertActiveLoad(requestId);
+
+    const vState = getVirtualScrollerState();
+
+    if (vState) {
+      createThumbnailList(pdfDoc.numPages);
+      refreshVirtualScroller();
+
+      if (typeof window.showPage === 'function') {
+        await window.showPage(1, false);
+        onPagesRendered(1);
+      } else {
+        await showPage(1, onPagesRendered);
+      }
+    } else {
+      await renderAllPages(onPagesRendered);
+    }
+
+    assertActiveLoad(requestId);
+    onLoadingEnd(true);
+  } catch (error) {
+    if (error?.code === 'PDF_LOAD_STALE') {
+      return;
+    }
+
+    console.error('加载文件失败:', error);
+    if (requestId === activeLoadRequestId) {
+      cleanupAllResources();
+    }
+    onError(error?.message || '文件加载失败，请检查文件。');
+    onLoadingEnd(false);
+  }
 }
 
 /**
@@ -132,6 +257,9 @@ export async function handlePdfFile(
 export function createThumbnailList(totalPages) {
   const container = document.getElementById('thumbnail-container');
   if (!container) return;
+
+  createPageWrappers(totalPages);
+  setThumbnailEmptyStateVisible(false);
 
   // 清空旧内容（保留空状态）
   Array.from(container.children).forEach(child => {
@@ -180,7 +308,18 @@ function createThumbnailItem(pageNum) {
   pageNumText.textContent = `第 ${pageNum} 页`;
   thumbItem.appendChild(pageNumText);
 
-  thumbItem.addEventListener('click', () => showPage(pageNum));
+  thumbItem.addEventListener('click', (event) => {
+    if (handleThumbnailInteraction(pageNum, event)) {
+      return;
+    }
+
+    if (typeof window.showPage === 'function') {
+      window.showPage(pageNum);
+      return;
+    }
+
+    showPage(pageNum);
+  });
 
   return thumbItem;
 }
@@ -201,6 +340,44 @@ function createPageWrapper(pageNum) {
   wrapper.appendChild(canvas);
 
   return wrapper;
+}
+
+/**
+ * 创建主区域页面画布包装器
+ * @param {number} totalPages
+ */
+function createPageWrappers(totalPages) {
+  const mainContent = document.getElementById('main-content');
+  if (!mainContent) return;
+
+  mainContent.querySelectorAll('.canvas-wrapper').forEach((wrapper) => {
+    wrapper.remove();
+  });
+
+  for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+    mainContent.appendChild(createPageWrapper(pageNum));
+  }
+}
+
+function ensureThumbnailEmptyState(container) {
+  let emptyState = container.querySelector('.empty-state');
+  if (emptyState) return emptyState;
+
+  emptyState = document.createElement('div');
+  emptyState.className = 'empty-state';
+  const message = document.createElement('p');
+  message.textContent = '请先上传文件';
+  emptyState.appendChild(message);
+  container.prepend(emptyState);
+  return emptyState;
+}
+
+function setThumbnailEmptyStateVisible(visible) {
+  const container = document.getElementById('thumbnail-container');
+  if (!container) return;
+
+  const emptyState = ensureThumbnailEmptyState(container);
+  emptyState.style.display = visible ? '' : 'none';
 }
 
 /**
@@ -370,6 +547,12 @@ async function renderAllPages(onPagesRendered) {
   initializeThumbnailDragSort(thumbnailContainer);
   scheduleVisibleThumbnailRender();
 
+  if (typeof window.showPage === 'function') {
+    await window.showPage(1, false);
+    if (onPagesRendered) onPagesRendered(1);
+    return;
+  }
+
   await showPage(1, onPagesRendered);
 }
 
@@ -450,6 +633,15 @@ export function cleanupAllResources() {
     thumbnailRenderFrameId = null;
   }
 
+  const pdfDoc = getPdfDoc();
+  if (pdfDoc?.destroy) {
+    Promise.resolve(pdfDoc.destroy()).catch((error) => {
+      console.warn('销毁 PDF 文档时出错:', error);
+    });
+  }
+
+  window.History?.clearHistory?.();
+
   const fabricCanvases = [...getState().fabricCanvases];
   fabricCanvases.forEach((canvas, index) => {
     if (canvas) {
@@ -461,12 +653,46 @@ export function cleanupAllResources() {
     }
   });
 
+  document.querySelectorAll('.canvas-wrapper').forEach((wrapper) => {
+    wrapper.remove();
+  });
+
+  const thumbnailContainer = document.getElementById('thumbnail-container');
+  if (thumbnailContainer) {
+    thumbnailContainer.scrollTop = 0;
+    Array.from(thumbnailContainer.children).forEach((child) => {
+      if (!child.classList.contains('empty-state')) {
+        child.remove();
+      }
+    });
+    setThumbnailEmptyStateVisible(true);
+  }
+
+  const mainContent = document.getElementById('main-content');
+  if (mainContent) {
+    mainContent.scrollTop = 0;
+  }
+
+  const virtualScroller = getState().virtualScroller;
+  if (virtualScroller) {
+    virtualScroller.visibleRange = { start: 1, end: 10 };
+    virtualScroller.renderedPages?.clear?.();
+    virtualScroller.pageHeights = [];
+  }
+
+  resetPageNavigator();
+
   setState({
     fabricCanvases: [],
     pageFitScales: [],
     pdfDoc: null,
     originalPdfBytes: null,
+    currentPdfFile: null,
+    currentSourceKind: null,
     totalPages: 0,
     currentActivePage: 1,
+    selectedPages: new Set(),
+    isMultiSelectMode: false,
+    selectionAnchorPage: 1,
   });
 }

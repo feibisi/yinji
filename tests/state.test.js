@@ -1,105 +1,66 @@
-/**
- * State Management 单元测试
- * 测试 state.js 中的状态管理函数
- */
+function createResults() {
+  return {
+    passed: 0,
+    failed: 0,
+    tests: [],
+  };
+}
 
-let testResults = {
-  passed: 0,
-  failed: 0,
-  tests: []
-};
-
-function assert(condition, message) {
+function assert(results, condition, message) {
   if (condition) {
-    testResults.passed++;
-    testResults.tests.push({ status: 'PASS', message: message });
-  } else {
-    testResults.failed++;
-    testResults.tests.push({ status: 'FAIL', message: message });
+    results.passed += 1;
+    results.tests.push({ status: 'PASS', message });
+    return;
   }
+
+  results.failed += 1;
+  results.tests.push({ status: 'FAIL', message });
 }
 
-function runStateTests() {
-  console.log('=== State Management Tests ===\n');
+export function runStateTests() {
+  const results = createResults();
 
-  // Test getState returns state object
-  var state = window.AppState.getState();
-  assert(typeof state === 'object', 'getState returns object');
+  const state = window.AppState.getState();
+  assert(results, typeof state === 'object', 'getState returns object');
+  assert(results, state.pdfDoc === null, 'initial pdfDoc is null');
+  assert(results, state.originalPdfBytes === null, 'initial originalPdfBytes is null');
+  assert(results, Array.isArray(state.fabricCanvases), 'fabricCanvases is array');
+  assert(results, state.fabricCanvases.length === 0, 'fabricCanvases is empty');
+  assert(results, state.sealImageElement === null, 'initial sealImageElement is null');
+  assert(results, state.currentActivePage === 1, 'initial currentActivePage is 1');
+  assert(results, state.totalPages === 0, 'initial totalPages is 0');
+  assert(results, Array.isArray(state.pageFitScales), 'pageFitScales is array');
+  assert(results, state.globalZoomMultiplier === 1.0, 'initial globalZoomMultiplier is 1.0');
+  assert(results, state.sealRotation === 0, 'initial sealRotation is 0');
+  assert(results, state.sealBrightness === 100, 'initial sealBrightness is 100');
 
-  // Test initial state values
-  assert(state.pdfDoc === null, 'initial pdfDoc is null');
-  assert(state.originalPdfBytes === null, 'initial originalPdfBytes is null');
-  assert(Array.isArray(state.fabricCanvases), 'fabricCanvases is array');
-  assert(state.fabricCanvases.length === 0, 'fabricCanvases is empty');
-  assert(state.sealImageElement === null, 'initial sealImageElement is null');
-  assert(state.currentActivePage === 1, 'initial currentActivePage is 1');
-  assert(state.totalPages === 0, 'initial totalPages is 0');
-  assert(Array.isArray(state.pageFitScales), 'pageFitScales is array');
-  assert(state.globalZoomMultiplier === 1.0, 'initial globalZoomMultiplier is 1.0');
-  assert(state.sealRotation === 0, 'initial sealRotation is 0');
-  assert(state.sealBrightness === 100, 'initial sealBrightness is 100');
-
-  // Test setState updates state
   window.AppState.setState({ currentActivePage: 5 });
-  var updatedState = window.AppState.getState();
-  assert(updatedState.currentActivePage === 5, 'setState updates currentActivePage');
+  const updatedState = window.AppState.getState();
+  assert(results, updatedState.currentActivePage === 5, 'setState updates currentActivePage');
+  assert(results, updatedState.totalPages === 0, 'setState preserves other values');
 
-  // Test setState preserves other values
-  assert(updatedState.totalPages === 0, 'setState preserves other values');
-
-  // Test setState with multiple values
   window.AppState.setState({ totalPages: 10, currentActivePage: 3 });
-  var multiState = window.AppState.getState();
-  assert(multiState.totalPages === 10, 'setState updates totalPages');
-  assert(multiState.currentActivePage === 3, 'setState updates currentActivePage correctly');
+  const multiState = window.AppState.getState();
+  assert(results, multiState.totalPages === 10, 'setState updates totalPages');
+  assert(results, multiState.currentActivePage === 3, 'setState updates currentActivePage correctly');
 
-  // Test subscribe function
-  var listenerCalled = false;
-  var testListener = function(newState) {
+  let listenerCalled = false;
+  const unsubscribe = window.AppState.subscribe(() => {
     listenerCalled = true;
-  };
-  var unsubscribe = window.AppState.subscribe(testListener);
-  window.AppState.setState({ sealRotation: 45 });
-  assert(listenerCalled === true, 'subscribe listener is called on state change');
-
-  // Test unsubscribe
-  var secondListenerCalled = false;
-  var secondListener = function() {
-    secondListenerCalled = true;
-  };
-  var unsubscribe2 = window.AppState.subscribe(secondListener);
-  unsubscribe2();
-  window.AppState.setState({ sealBrightness: 50 });
-  // Note: secondListener might still be called if unsubscribe happens before dispatch
-  assert(typeof unsubscribe2 === 'function', 'unsubscribe returns a function');
-
-  printTestResults();
-}
-
-function printTestResults() {
-  var total = testResults.passed + testResults.failed;
-  var percentage = total > 0 ? Math.round((testResults.passed / total) * 100) : 0;
-
-  console.log('\n=== Test Results ===');
-  console.log('Total: ' + total + ' | Passed: ' + testResults.passed + ' | Failed: ' + testResults.failed);
-  console.log('Pass Rate: ' + percentage + '%\n');
-
-  testResults.tests.forEach(function(test, index) {
-    var icon = test.status === 'PASS' ? 'PASS' : 'FAIL';
-    console.log('  ' + icon + ': ' + test.message);
   });
+  window.AppState.setState({ sealRotation: 45 });
+  assert(results, listenerCalled === true, 'subscribe listener is called on state change');
+  unsubscribe();
 
-  var resultsElement = document.getElementById('test-results');
-  if (resultsElement) {
-    resultsElement.textContent = 'Total: ' + total + ' | Passed: ' + testResults.passed + ' | Failed: ' + testResults.failed + ' | Pass Rate: ' + percentage + '%';
-  }
+  let secondListenerCalled = false;
+  const unsubscribeSecond = window.AppState.subscribe(() => {
+    secondListenerCalled = true;
+  });
+  unsubscribeSecond();
+  window.AppState.setState({ sealBrightness: 50 });
+  assert(results, secondListenerCalled === false, 'unsubscribe removes listener');
+
+  return results;
 }
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', runStateTests);
-} else {
-  runStateTests();
-}
-
-window.testResults = testResults;
 window.runStateTests = runStateTests;

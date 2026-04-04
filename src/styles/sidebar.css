@@ -1,0 +1,294 @@
+/* ==================== 左侧边栏样式 ==================== */
+
+.sidebar {
+  transition: padding 0.3s ease-in-out;
+  position: relative;
+}
+
+#app.sidebar-collapsed .sidebar {
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(241, 245, 249, 0.88));
+  border-color: rgba(148, 163, 184, 0.14);
+  box-shadow: none;
+}
+
+/* 侧边栏头部 */
+.sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem 1rem;
+  border-bottom: 1px solid var(--neutral-100);
+  height: 64px;
+}
+
+#app.sidebar-collapsed .sidebar-header {
+  justify-content: center;
+  padding: 0.875rem 0.5rem 0.625rem;
+  height: 68px;
+  border-bottom-color: transparent;
+}
+
+.sidebar-heading {
+  min-width: 0;
+  flex: 1;
+}
+
+.sidebar-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+#app.sidebar-collapsed .sidebar-header-actions {
+  width: 100%;
+  justify-content: center;
+}
+
+.sidebar-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--neutral-700);
+  white-space: nowrap;
+  overflow: hidden;
+  transition: opacity 0.2s, width 0.2s;
+}
+
+.sidebar-subtitle {
+  margin-top: 0.125rem;
+  font-size: 0.6875rem;
+  color: var(--text-color-light);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#app.sidebar-collapsed .sidebar-title {
+  opacity: 0;
+  width: 0;
+  display: none;
+}
+
+#app.sidebar-collapsed .sidebar-subtitle {
+  display: none;
+}
+
+#app.sidebar-collapsed .sidebar-header-actions .batch-mode-btn {
+  display: none;
+}
+
+/* 侧边栏切换按钮 */
+.sidebar-toggle-btn {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96));
+  border: 1px solid var(--neutral-200);
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  color: var(--text-color-secondary);
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.05);
+  transition: var(--transition-base);
+}
+
+.sidebar-toggle-btn:hover {
+  background: #ffffff;
+  color: var(--primary-color);
+  border-color: var(--primary-200);
+}
+
+.sidebar-toggle-btn svg,
+.sidebar-toggle-icon {
+  width: var(--icon-size-control);
+  height: var(--icon-size-control);
+  display: block;
+  stroke-width: 1.85;
+  transform-origin: center;
+  transition: transform 0.2s ease-in-out;
+}
+
+#app.sidebar-collapsed .sidebar-toggle-btn svg {
+  transform: rotate(180deg);
+}
+
+/* 缩略图容器 */
+.thumbnail-container {
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex-grow: 1;
+  padding: 1rem;
+  /* 自定义滚动条 */
+  scrollbar-width: thin;
+  scrollbar-color: var(--neutral-300) transparent;
+}
+
+.thumbnail-container::-webkit-scrollbar {
+  width: 6px;
+}
+.thumbnail-container::-webkit-scrollbar-thumb {
+  background-color: var(--neutral-300);
+  border-radius: 3px;
+}
+
+#app.sidebar-collapsed .thumbnail-container {
+  display: none;
+}
+
+.sidebar-collapsed-panel {
+  display: none;
+  flex: 1;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 0.375rem 0.875rem;
+}
+
+#app.sidebar-collapsed .sidebar-collapsed-panel {
+  display: flex;
+}
+
+.collapsed-sidebar-pill {
+  width: 100%;
+  max-width: 42px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.5625rem 0.25rem;
+  border-radius: 16px;
+  background: rgba(248, 250, 252, 0.96);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  text-align: center;
+}
+
+.collapsed-sidebar-label {
+  font-size: 0.5625rem;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-color-light);
+}
+
+.collapsed-sidebar-icon {
+  width: var(--icon-size-control);
+  height: var(--icon-size-control);
+  color: var(--primary-600);
+  stroke-width: 1.85;
+}
+
+#collapsed-sidebar-primary {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--neutral-800);
+  letter-spacing: 0.01em;
+}
+
+#collapsed-sidebar-secondary {
+  font-size: 0.625rem;
+  line-height: 1.35;
+  color: var(--text-color-secondary);
+}
+
+#app.sidebar-collapsed #collapsed-sidebar-secondary {
+  display: none;
+}
+
+/* 空状态 */
+.empty-state {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  color: var(--text-color-light);
+  font-size: 0.8125rem;
+  text-align: center;
+}
+
+.empty-state-icon {
+  width: var(--icon-size-display);
+  height: var(--icon-size-display);
+  opacity: 0.45;
+  stroke-width: 1.75;
+}
+
+.empty-state h3 {
+  font-size: 0.875rem;
+  color: var(--neutral-700);
+  font-weight: 600;
+}
+
+.empty-state p {
+  max-width: 150px;
+  line-height: 1.6;
+}
+
+/* 缩略图项 */
+.thumbnail-item {
+  margin-bottom: 1rem;
+  cursor: pointer;
+  border: 2px solid transparent;
+  border-radius: var(--border-radius-sm);
+  transition: var(--transition-base);
+  padding: 6px;
+  background: var(--neutral-50);
+  position: relative;
+}
+
+.thumbnail-item:hover {
+  background: var(--neutral-100);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+
+.thumbnail-item canvas {
+  width: 100%;
+  display: block;
+  border-radius: 4px;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.thumbnail-placeholder {
+  width: 100%;
+  aspect-ratio: 1 / 1.414;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: linear-gradient(135deg, var(--neutral-100), var(--neutral-200));
+  color: var(--text-color-light);
+  font-size: 0.75rem;
+  text-align: center;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+
+.thumbnail-item.selected {
+  box-shadow: 0 0 0 2px var(--primary-500);
+  outline: 2px solid var(--primary-500);
+}
+
+.batch-mode-btn {
+  min-width: 0;
+  width: auto;
+  white-space: nowrap;
+  border-radius: 999px;
+  padding-inline: 0.75rem;
+}
+
+.thumbnail-item.active {
+  border-color: var(--primary-color);
+  background: var(--primary-50);
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.12);
+}
+
+.thumbnail-item p {
+  text-align: center;
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-color-secondary);
+}
