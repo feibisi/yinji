@@ -1,6 +1,8 @@
 # 临时调试文件
 tmp-*.html
 test-*.pdf
+!test-fixture.pdf
+!test-multi.pdf
 
 # 截图
 ui-*.png

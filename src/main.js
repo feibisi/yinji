@@ -227,8 +227,8 @@ function updateWorkflowGuidance({
       label = '盖到当前页';
       action = 'add-seal';
     } else if (hasPdf && placedStampCount > 0) {
-      label = '立即下载';
-      action = 'download-now';
+      label = isImageSource ? '立即下载 PNG' : '立即下载';
+      action = isImageSource ? 'download-image-now' : 'download-now';
     }
 
     guidePrimaryBtn.textContent = label;
@@ -269,7 +269,9 @@ function updateWorkflowGuidance({
     } else if (hasPdf && hasSeal && placedStampCount === 0) {
       text = `印章准备好了，点上面的按钮放到第 ${currentActivePage} 页。`;
     } else if (hasPdf && placedStampCount > 0) {
-      text = `已放置 ${placedStampCount} 个对象。可以直接下载，或去页面导出。`;
+      text = isImageSource
+        ? `已放置 ${placedStampCount} 个对象。可以直接下载 PNG，或去导出里下载 PDF。`
+        : `已放置 ${placedStampCount} 个对象。可以直接下载，或去页面导出。`;
     }
 
     editNextStep.textContent = text;
@@ -819,6 +821,9 @@ function initializeEventListeners() {
           break;
         case 'download-now':
           exportPDF(getState().currentPdfFile);
+          break;
+        case 'download-image-now':
+          exportCurrentPageAsImage(getState().currentPdfFile);
           break;
         case 'go-export':
           switchToolbarTab('export');

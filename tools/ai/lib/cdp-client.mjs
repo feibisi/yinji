@@ -1,10 +1,20 @@
 const DEFAULT_CDP_BASE_URL = 'http://127.0.0.1:9222';
 
 export async function openPageTarget(pageUrl, cdpBaseUrl = DEFAULT_CDP_BASE_URL) {
-  const response = await fetch(
-    `${cdpBaseUrl.replace(/\/$/, '')}/json/new?${encodeURI(pageUrl)}`,
-    { method: 'PUT' }
-  );
+  const endpoint = `${cdpBaseUrl.replace(/\/$/, '')}/json/new?${encodeURI(pageUrl)}`;
+  let response;
+
+  try {
+    response = await fetch(endpoint, { method: 'PUT' });
+  } catch (error) {
+    const detail =
+      error?.cause?.code || error?.message
+        ? ` 原始错误：${error?.cause?.code || error?.message}`
+        : '';
+    throw new Error(
+      `无法连接浏览器调试端口 ${cdpBaseUrl}。请先启动带 --remote-debugging-port=9222 的 Chrome 或 Chromium。${detail}`
+    );
+  }
 
   if (!response.ok) {
     throw new Error(
