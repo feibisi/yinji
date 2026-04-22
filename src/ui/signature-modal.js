@@ -13,6 +13,16 @@ const signaturePad = {
   lastY: 0,
   initialized: false,
 
+  getPoint(event) {
+    const rect = this.canvas.getBoundingClientRect();
+    const clientX = event.touches ? event.touches[0].clientX : event.clientX;
+    const clientY = event.touches ? event.touches[0].clientY : event.clientY;
+    return {
+      x: ((clientX - rect.left) * this.canvas.width) / rect.width,
+      y: ((clientY - rect.top) * this.canvas.height) / rect.height,
+    };
+  },
+
   init() {
     if (this.initialized) return;
 
@@ -33,12 +43,7 @@ const signaturePad = {
       'touchstart',
       (event) => {
         event.preventDefault();
-        const touch = event.touches[0];
-        const rect = this.canvas.getBoundingClientRect();
-        this.startDrawing({
-          offsetX: touch.clientX - rect.left,
-          offsetY: touch.clientY - rect.top,
-        });
+        this.startDrawing(event);
       }
     );
 
@@ -46,12 +51,7 @@ const signaturePad = {
       'touchmove',
       (event) => {
         event.preventDefault();
-        const touch = event.touches[0];
-        const rect = this.canvas.getBoundingClientRect();
-        this.draw({
-          offsetX: touch.clientX - rect.left,
-          offsetY: touch.clientY - rect.top,
-        });
+        this.draw(event);
       }
     );
 
@@ -61,17 +61,19 @@ const signaturePad = {
   },
 
   startDrawing(event) {
+    const point = this.getPoint(event);
     this.isDrawing = true;
-    [this.lastX, this.lastY] = [event.offsetX, event.offsetY];
+    [this.lastX, this.lastY] = [point.x, point.y];
   },
 
   draw(event) {
     if (!this.isDrawing) return;
+    const point = this.getPoint(event);
     this.ctx.beginPath();
     this.ctx.moveTo(this.lastX, this.lastY);
-    this.ctx.lineTo(event.offsetX, event.offsetY);
+    this.ctx.lineTo(point.x, point.y);
     this.ctx.stroke();
-    [this.lastX, this.lastY] = [event.offsetX, event.offsetY];
+    [this.lastX, this.lastY] = [point.x, point.y];
   },
 
   stopDrawing() {

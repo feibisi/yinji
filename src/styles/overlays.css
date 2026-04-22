@@ -461,7 +461,7 @@
   cursor: crosshair;
   display: block;
   background: white;
-  width: min(100%, 560px);
+  width: min(100%, 600px);
   height: auto;
   aspect-ratio: 2 / 1;
 }
