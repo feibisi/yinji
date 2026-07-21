@@ -16,7 +16,8 @@ function triggerPdfDownload(bytes, filename) {
   link.href = URL.createObjectURL(blob);
   link.download = filename;
   link.click();
-  URL.revokeObjectURL(link.href);
+  // 延迟撤销：部分浏览器在下载真正开始前撤销会导致下载失败/空文件
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 }
 
 /**

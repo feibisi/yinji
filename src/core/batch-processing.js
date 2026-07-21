@@ -5,6 +5,7 @@
 
 import { getState } from './state.js';
 import { dataUrlToUint8Array } from '../utils/data-url.js';
+import { generateSafeExportFilename } from '../utils/security.js';
 
 // ==================== State ====================
 
@@ -250,9 +251,12 @@ async function processSingleBatchFile(fileItem) {
         // Download file
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
-        link.download = fileItem.file.name.replace('.pdf', '_盖章版.pdf');
+        // 统一走 sanitize，并按扩展名（大小写不敏感、仅结尾）正确改名，
+        // 避免 "2024.pdf.report.pdf" 错位替换或大写 .PDF 不加后缀导致同名覆盖。
+        link.download = generateSafeExportFilename(fileItem.file, '_盖章版');
         link.click();
-        URL.revokeObjectURL(link.href);
+        // 延迟撤销：部分浏览器在下载真正开始前撤销会导致下载失败/空文件
+        setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 
         resolve();
       } catch (error) {

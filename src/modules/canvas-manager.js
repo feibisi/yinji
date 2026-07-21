@@ -110,7 +110,14 @@ export async function initializeFabricCanvasForPage(pageNum, forceRecalculate = 
   const originalHeight = highResViewport.height;
 
   const canvasEl = document.getElementById(`canvas-${pageNum}`);
-  const fabricCanvas = fabricCanvases[pageNum - 1] || new fabric.Canvas(canvasEl);
+  const fabricCanvas =
+    fabricCanvases[pageNum - 1] ||
+    new fabric.Canvas(canvasEl, {
+      // 允许右键选中/操作对象，并阻止浏览器原生右键菜单，
+      // 使自定义右键菜单能作用在实际点到的印章上。
+      fireRightClick: true,
+      stopContextMenu: true,
+    });
 
   if (!fabricCanvases[pageNum - 1]) {
     fabricCanvas.originalWidth = originalWidth;

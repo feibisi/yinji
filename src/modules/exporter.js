@@ -105,7 +105,8 @@ export async function exportPDF(pdfFile) {
 
     window.Loading.updateProgress(100, '完成！');
     link.click();
-    URL.revokeObjectURL(link.href);
+    // 延迟撤销：部分浏览器在下载真正开始前撤销会导致下载失败/空文件
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 
     window.Loading.hide();
     window.Toast.success(`已开始下载：${safeFilename}`);
@@ -175,7 +176,8 @@ export async function exportCurrentPageAsImage(sourceFile) {
 
     window.Loading.updateProgress(100, '完成！');
     link.click();
-    URL.revokeObjectURL(link.href);
+    // 延迟撤销：部分浏览器在下载真正开始前撤销会导致下载失败/空文件
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 
     try {
       await pdfDoc.destroy?.();

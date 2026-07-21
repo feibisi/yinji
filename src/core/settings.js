@@ -202,7 +202,8 @@ function exportSettings() {
   link.download = 'yinji-settings.json';
   link.click();
 
-  URL.revokeObjectURL(url);
+  // 延迟撤销：部分浏览器在下载真正开始前撤销会导致下载失败
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
   window.Toast?.success('设置已导出');
 }
 

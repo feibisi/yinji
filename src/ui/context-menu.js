@@ -40,7 +40,24 @@ function handleContextMenuOpen(event) {
   }
 
   const canvas = getCurrentPageCanvas();
-  const activeObject = canvas?.getActiveObject();
+  if (!canvas) {
+    hideContextMenu();
+    return;
+  }
+
+  // 先把右键点到的对象设为活动对象，再读 activeObject，
+  // 否则菜单会不出现（此前没选中）或作用在上一个选中的对象上。
+  try {
+    const target = canvas.findTarget(event);
+    if (target && !target.isBackgroundImage) {
+      canvas.setActiveObject(target);
+      canvas.requestRenderAll();
+    }
+  } catch (error) {
+    // findTarget 在个别 fabric 版本可能抛错，忽略后回退到当前选中态
+  }
+
+  const activeObject = canvas.getActiveObject();
 
   if (!activeObject) {
     hideContextMenu();

@@ -16,10 +16,32 @@ const MAX_SEALS = 20; // 最多保存20个印章
  * Get all saved seals from localStorage
  * @returns {Array} Array of seal objects
  */
+function isValidSeal(seal) {
+  return Boolean(
+    seal &&
+    typeof seal === 'object' &&
+    typeof seal.imageData === 'string' &&
+    seal.imageData.length > 0
+  );
+}
+
 function getSavedSeals() {
   try {
     const data = localStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : [];
+    if (!data) {
+      return [];
+    }
+
+    const parsed = JSON.parse(data);
+    // 校验解析结果必须是数组，且逐项过滤脏数据；
+    // 否则被污染成 {}/字符串/数字的键会让下游 findIndex/forEach/length 全线崩溃。
+    if (!Array.isArray(parsed)) {
+      console.warn('印章库数据格式异常，已重置');
+      localStorage.removeItem(STORAGE_KEY);
+      return [];
+    }
+
+    return parsed.filter(isValidSeal);
   } catch (error) {
     console.error('读取印章库失败:', error);
     window.Toast?.error('读取印章库失败');
@@ -258,7 +280,6 @@ function loadAndApplySeal(sealId) {
     );
 
     const sealImageElement = new Image();
-    sealImageElement.src = seal.imageData;
     sealImageElement.onload = () => {
       // Apply all settings
       if (rotationSlider && rotationInput) {
@@ -278,9 +299,17 @@ function loadAndApplySeal(sealId) {
         sealRotation: seal.rotation || 0,
         sealBrightness: seal.brightness || 100,
       });
+
+      // 成功提示必须在 onload 内：图片损坏时不能假报成功，
+      // 否则 state 未更新却提示成功，后续盖章会用旧/空印章。
+      window.Toast?.success(`已加载印章 "${seal.name}"`);
     };
 
-    window.Toast?.success(`已加载印章 "${seal.name}"`);
+    sealImageElement.onerror = () => {
+      window.Toast?.error(`印章 "${seal.name}" 数据损坏，无法加载`);
+    };
+
+    sealImageElement.src = seal.imageData;
   }
 }
 
