@@ -295,10 +295,17 @@ export async function addStraddleSeal() {
           const imgPiece = await loadFabricImage(tempPieceCanvas.toDataURL());
           imgPiece.scale(initialScale);
           const scaledPieceWidth = pieceWidth * initialScale;
+          const scaledPieceHeight = sealImageElement.height * initialScale;
+          // 按页面实际高度垂直居中，替换硬编码 top:400，
+          // 避免固定像素在小页面出界或不同尺寸页位置不一致。
+          const straddleTop = Math.max(
+            0,
+            (canvas.originalHeight - scaledPieceHeight) / 2
+          );
 
           imgPiece.set({
             left: canvas.originalWidth - scaledPieceWidth,
-            top: 400,
+            top: straddleTop,
             hasControls: true,
             borderColor: '#007bff',
             lockMovementX: true,

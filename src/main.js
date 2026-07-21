@@ -905,6 +905,17 @@ function initializeEventListeners() {
     onToolbarStatusChange: updateToolbarStatus,
   });
 
+  // Undo / Redo buttons (disabled 状态由 window.History.updateUndoRedoButtons 维护)
+  const undoBtn = document.getElementById('undoBtn');
+  if (undoBtn) {
+    undoBtn.addEventListener('click', () => window.History.undo());
+  }
+
+  const redoBtn = document.getElementById('redoBtn');
+  if (redoBtn) {
+    redoBtn.addEventListener('click', () => window.History.redo());
+  }
+
   // Help button
   const helpBtn = document.getElementById('helpBtn');
   if (helpBtn) {
