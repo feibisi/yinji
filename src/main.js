@@ -1073,6 +1073,20 @@ function handlePdfFileWithCallbacks(file) {
  * @param {KeyboardEvent} e
  */
 function handleKeyboardShortcuts(e) {
+  // 焦点在输入控件或正在中文输入时，让位给原生编辑行为，
+  // 否则会出现坐标框 Backspace 误删印章、方向键误移、负号/文本无法输入、Ctrl+C/V/S 被劫持等问题。
+  const target = e.target;
+  const tag = target?.tagName;
+  if (
+    e.isComposing ||
+    tag === 'INPUT' ||
+    tag === 'TEXTAREA' ||
+    tag === 'SELECT' ||
+    target?.isContentEditable
+  ) {
+    return;
+  }
+
   const canvas = getCurrentPageCanvas();
   const activeObject = canvas?.getActiveObject();
 
