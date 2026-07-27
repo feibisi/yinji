@@ -23,3 +23,6 @@ node_modules/
 
 # 日志
 *.log
+
+# superpowers 执行台账与临时产物(本地)
+.superpowers/

@@ -232,7 +232,8 @@ const r = await send('Runtime.evaluate', {
 console.log(r.result?.value ?? JSON.stringify(r));
 ws.close(); process.exit(0);
 EOF
-timeout 60 node /tmp/run-tests.mjs```
+timeout 60 node /tmp/run-tests.mjs
+```
 
 Expected: 输出 `NOT_LOADED` 或 `ERROR: Failed to resolve module specifier` —— 因为 `src/modules/scan-effect.js` 还不存在。
 
