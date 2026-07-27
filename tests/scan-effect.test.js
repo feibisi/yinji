@@ -12,6 +12,10 @@ import {
   sanitizeWatermark,
   applyWatermark,
 } from '../src/modules/scan-watermark.js';
+import {
+  DEFAULT_SCAN_METADATA,
+  sanitizeScanMetadata,
+} from '../src/modules/scan-export.js';
 
 function createResults() {
   return {
@@ -230,6 +234,16 @@ export async function runScanEffectTests() {
   const wmClamp = sanitizeWatermark({ angle: 999, text: 'x'.repeat(500) });
   assert(results, wmClamp.angle === 180, '越界 angle 应钳制到 180');
   assert(results, wmClamp.text.length === 100, '超长文本应截断到 100 字');
+
+  // 20. 元数据默认值与 sanitize
+  assert(results, DEFAULT_SCAN_METADATA.enabled === false, '元数据默认应关闭');
+  assert(results, DEFAULT_SCAN_METADATA.scannerStyle === false, '扫描仪风格默认应关闭');
+  const md = sanitizeScanMetadata({ title: 456, author: '  张三  ', evil: 1, enabled: 1, scannerStyle: 'x' });
+  assert(results, md.title === '456', '标题应转为字符串');
+  assert(results, md.author === '张三', '作者应去除首尾空格');
+  assert(results, md.enabled === true, 'enabled 应转布尔');
+  assert(results, md.scannerStyle === true, 'scannerStyle 应转布尔');
+  assert(results, !('evil' in md), '未知键应剔除');
 
   return results;
 }
