@@ -290,6 +290,118 @@
                 </div>
                 <p id="export-hint" class="export-hint"></p>
               </div>
+              <div class="tool-section" data-pdf-dependent="true" data-section-key="export-scan" data-section-default="closed">
+                <h3>导出为扫描件</h3>
+                <p class="tool-section-note">让文件看起来像打印后扫描的。会连印章一起处理。</p>
+                <div class="scan-preset-row">
+                  <button type="button" class="btn btn-sm btn-secondary" data-scan-preset="light">轻度做旧</button>
+                  <button type="button" class="btn btn-sm btn-secondary" data-scan-preset="standard">标准扫描</button>
+                  <button type="button" class="btn btn-sm btn-secondary" data-scan-preset="mono">黑白复印</button>
+                </div>
+                <label class="scan-toggle-row">
+                  <input type="checkbox" id="scan-preview-toggle">
+                  <span>实时预览当前页</span>
+                </label>
+                <div class="scan-field">
+                  <label for="scan-noise">噪点</label>
+                  <input type="range" id="scan-noise" min="0" max="1" step="0.01">
+                  <span class="scan-value" id="scan-noise-value">0.25</span>
+                </div>
+                <div class="scan-field">
+                  <label for="scan-rotate-var">歪斜抖动</label>
+                  <input type="range" id="scan-rotate-var" min="0" max="10" step="0.1">
+                  <span class="scan-value" id="scan-rotate-var-value">0.5</span>
+                </div>
+                <div class="scan-field">
+                  <label for="scan-yellowish">泛黄</label>
+                  <input type="range" id="scan-yellowish" min="0" max="2" step="0.01">
+                  <span class="scan-value" id="scan-yellowish-value">0</span>
+                </div>
+                <div class="scan-field">
+                  <label for="scan-contrast">对比度</label>
+                  <input type="range" id="scan-contrast" min="0" max="2" step="0.01">
+                  <span class="scan-value" id="scan-contrast-value">1</span>
+                </div>
+                <label class="scan-toggle-row">
+                  <input type="checkbox" id="scan-border">
+                  <span>加黑边框</span>
+                </label>
+                <details class="scan-more">
+                  <summary>更多参数</summary>
+                  <div class="scan-field">
+                    <label for="scan-blur">模糊</label>
+                    <input type="range" id="scan-blur" min="0" max="1" step="0.01">
+                    <span class="scan-value" id="scan-blur-value">0.5</span>
+                  </div>
+                  <div class="scan-field">
+                    <label for="scan-brightness">亮度</label>
+                    <input type="range" id="scan-brightness" min="0" max="2" step="0.01">
+                    <span class="scan-value" id="scan-brightness-value">1</span>
+                  </div>
+                  <div class="scan-field">
+                    <label for="scan-rotate">歪斜基准</label>
+                    <input type="range" id="scan-rotate" min="-10" max="10" step="0.1">
+                    <span class="scan-value" id="scan-rotate-value">1</span>
+                  </div>
+                  <div class="scan-field">
+                    <label for="scan-scale">分辨率</label>
+                    <input type="range" id="scan-scale" min="1" max="3" step="0.5">
+                    <span class="scan-value" id="scan-scale-value">144 DPI</span>
+                  </div>
+                  <label class="scan-toggle-row">
+                    <input type="checkbox" id="scan-gray" checked>
+                    <span>黑白(灰度)</span>
+                  </label>
+                </details>
+                <details class="scan-more">
+                  <summary>水印</summary>
+                  <label class="scan-toggle-row">
+                    <input type="checkbox" id="scan-watermark-enabled">
+                    <span>加水印</span>
+                  </label>
+                  <div class="scan-field">
+                    <label for="scan-watermark-text">文字</label>
+                    <input type="text" id="scan-watermark-text" class="scan-text-input" placeholder="机密" maxlength="100">
+                  </div>
+                  <div class="scan-field">
+                    <label for="scan-watermark-opacity">透明度</label>
+                    <input type="range" id="scan-watermark-opacity" min="0" max="1" step="0.01">
+                    <span class="scan-value" id="scan-watermark-opacity-value">0.25</span>
+                  </div>
+                  <div class="scan-field">
+                    <label for="scan-watermark-size">字号</label>
+                    <input type="range" id="scan-watermark-size" min="8" max="200" step="1">
+                    <span class="scan-value" id="scan-watermark-size-value">48</span>
+                  </div>
+                  <label class="scan-toggle-row">
+                    <input type="checkbox" id="scan-watermark-repeat" checked>
+                    <span>平铺整页</span>
+                  </label>
+                </details>
+                <details class="scan-more">
+                  <summary>PDF 信息</summary>
+                  <label class="scan-toggle-row">
+                    <input type="checkbox" id="scan-meta-enabled">
+                    <span>写入自定义信息</span>
+                  </label>
+                  <div class="scan-field">
+                    <label for="scan-meta-title">标题</label>
+                    <input type="text" id="scan-meta-title" class="scan-text-input" maxlength="200">
+                  </div>
+                  <div class="scan-field">
+                    <label for="scan-meta-author">作者</label>
+                    <input type="text" id="scan-meta-author" class="scan-text-input" maxlength="200">
+                  </div>
+                  <label class="scan-toggle-row">
+                    <input type="checkbox" id="scan-meta-scanner">
+                    <span>伪装成扫描仪产出</span>
+                  </label>
+                </details>
+                <div class="button-group">
+                  <button id="export-scan-btn" class="btn btn-primary btn-export">导出为扫描件</button>
+                </div>
+                <p class="scan-hint">扫描件是图片版 PDF：文字不可选、体积会变大，这是「像扫描」的正常结果。</p>
+              </div>
             </div>
             <div class="export-mode-panel" data-export-mode-panel="batch" hidden>
               <div class="tool-section" data-section-key="export-batch" data-section-default="open">
