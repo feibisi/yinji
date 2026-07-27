@@ -7,6 +7,7 @@ import { getState, subscribe } from '../core/state.js';
 import { getCurrentActivePage } from '../modules/canvas-manager.js';
 import {
   DEFAULT_SCAN_CONFIG,
+  SCAN_PARAM_RANGES,
   SCAN_PRESETS,
   sanitizeScanConfig,
   createNoiseImage,
@@ -182,6 +183,19 @@ function isPreviewOn() {
   return Boolean(toggle && toggle.checked);
 }
 
+// scale 拉到最高档时单页渲染要 9 秒上下, 拖任何滑块都会卡住。
+// 与其硬扛卡顿, 不如暂停预览渲染(导出不受影响), 调回去自动恢复。
+function isPreviewPaused() {
+  return scanConfig.scale >= SCAN_PARAM_RANGES.scale.max;
+}
+
+function setPreviewPausedHint(visible) {
+  const hint = el('scan-preview-paused-hint');
+  if (hint) {
+    hint.hidden = !visible;
+  }
+}
+
 /**
  * 判断本轮渲染是否已作废: 令牌被后来者顶掉, 或用户中途关了预览开关。
  * 每个 await 之后都要查一次, 任何异步间隙里的关开关/切页都能立即中止。
@@ -226,8 +240,18 @@ function bindCanvasEvents(fabricCanvas) {
 async function renderPreview() {
   if (!isPreviewOn()) {
     removePreviewLayer();
+    setPreviewPausedHint(false);
     return;
   }
+
+  if (isPreviewPaused()) {
+    // 意图仍是"开着预览", 只是这一档暂不渲染: 开关状态不动, 只撤掉预览层。
+    removePreviewLayer();
+    setPreviewPausedHint(true);
+    return;
+  }
+
+  setPreviewPausedHint(false);
 
   const pageNum = getCurrentActivePage();
   const wrapper = document.getElementById(`page-wrapper-${pageNum}`);
