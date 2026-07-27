@@ -15,7 +15,9 @@ import {
 import {
   DEFAULT_SCAN_METADATA,
   sanitizeScanMetadata,
+  renderScannedPageDataUrl,
 } from '../src/modules/scan-export.js';
+import { getState, setState } from '../src/core/state.js';
 
 function createResults() {
   return {
@@ -75,6 +77,70 @@ function warmth(canvas) {
     b += data[i + 2];
   }
   return (r - b) / (data.length / 4);
+}
+
+/**
+ * 造一个模拟"某一页"的 fabric 画布: 原始基准尺寸固定, 而显示尺寸(受窗口宽度与用户缩放
+ * 影响的那一维)由参数指定, 用于验证导出分辨率不被显示尺寸绑架。
+ */
+function createPageCanvas(baseWidth, baseHeight, displayWidth) {
+  const host = document.createElement('div');
+  host.style.position = 'absolute';
+  host.style.left = '-10000px';
+  host.style.top = '0';
+  document.body.appendChild(host);
+
+  const element = document.createElement('canvas');
+  host.appendChild(element);
+
+  const canvas = new fabric.Canvas(element);
+  canvas.originalWidth = baseWidth;
+  canvas.originalHeight = baseHeight;
+
+  const zoom = displayWidth / baseWidth;
+  canvas.setZoom(zoom);
+  canvas.setDimensions({ width: baseWidth * zoom, height: baseHeight * zoom });
+
+  // 铺满上半页的黑块: 让"输出非纯白"可被像素证伪
+  canvas.add(
+    new fabric.Rect({
+      left: 0,
+      top: 0,
+      width: baseWidth,
+      height: baseHeight / 2,
+      fill: '#000000',
+    })
+  );
+  canvas.renderAll();
+
+  return { canvas, host };
+}
+
+function loadImage(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('测试图片加载失败'));
+    image.src = dataUrl;
+  });
+}
+
+function measureImage(image) {
+  const canvas = document.createElement('canvas');
+  canvas.width = image.width;
+  canvas.height = image.height;
+  canvas.getContext('2d').drawImage(image, 0, 0);
+  const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+
+  let sum = 0;
+  let darkest = 255;
+  for (let i = 0; i < data.length; i += 4) {
+    const luminance = (data[i] + data[i + 1] + data[i + 2]) / 3;
+    sum += luminance;
+    if (luminance < darkest) darkest = luminance;
+  }
+
+  return { mean: sum / (data.length / 4), darkest };
 }
 
 export async function runScanEffectTests() {
@@ -244,6 +310,108 @@ export async function runScanEffectTests() {
   assert(results, md.enabled === true, 'enabled 应转布尔');
   assert(results, md.scannerStyle === true, 'scannerStyle 应转布尔');
   assert(results, !('evil' in md), '未知键应剔除');
+
+  // 20b. 元数据布尔字段: 脏 localStorage 里的 false 类字符串不得被当成 true
+  const mdFalse = sanitizeScanMetadata({ enabled: 'false', scannerStyle: '0' });
+  assert(results, mdFalse.enabled === false, "元数据 enabled 字符串 'false' 应转为 false");
+  assert(results, mdFalse.scannerStyle === false, "元数据 scannerStyle 字符串 '0' 应转为 false");
+  const mdOff = sanitizeScanMetadata({ enabled: ' OFF ', scannerStyle: 'no' });
+  assert(results, mdOff.enabled === false, "元数据 enabled ' OFF '(含空格大写) 应转为 false");
+  assert(results, mdOff.scannerStyle === false, "元数据 scannerStyle 'no' 应转为 false");
+
+  // 21. 导出分辨率必须只由 originalWidth x config.scale 决定。
+  // fabric 的 multiplier 乘在画布当前显示尺寸上, 而显示尺寸随窗口宽度与用户缩放浮动,
+  // 一旦被绑架, 窄窗口下会糊到不可用、放大后会暴涨。以下断言是该问题的回归护栏。
+  const BASE_W = 600;
+  const BASE_H = 800;
+  const narrow = createPageCanvas(BASE_W, BASE_H, 60); // 窄窗口/缩小
+  const wide = createPageCanvas(BASE_W, BASE_H, 1500); // 放大到远超基准
+  const previousCanvases = getState().fabricCanvases;
+
+  try {
+    setState({ fabricCanvases: [narrow.canvas, wide.canvas] });
+
+    const renderConfig = {
+      ...DEFAULT_SCAN_CONFIG,
+      noise: 0,
+      rotate: 0,
+      rotate_var: 0,
+      scale: 2,
+      output_format: 'image/png',
+    };
+
+    const narrowImage = await loadImage(
+      await renderScannedPageDataUrl(0, renderConfig, DEFAULT_WATERMARK, null)
+    );
+    const wideImage = await loadImage(
+      await renderScannedPageDataUrl(1, renderConfig, DEFAULT_WATERMARK, null)
+    );
+
+    assert(
+      results,
+      Math.abs(narrowImage.width - BASE_W * 2) <= 2,
+      `窄画布(显示宽 60)下输出宽应为 ${BASE_W * 2}px, 实际 ${narrowImage.width}px`
+    );
+    // 只断言宽度会放过"截取范围不对导致的裁剪变形"(宽对而高错), 故高度同样要断言
+    assert(
+      results,
+      Math.abs(narrowImage.height - BASE_H * 2) <= 2,
+      `窄画布下输出高应为 ${BASE_H * 2}px, 实际 ${narrowImage.height}px`
+    );
+    assert(
+      results,
+      Math.abs(wideImage.width - BASE_W * 2) <= 2 && Math.abs(wideImage.height - BASE_H * 2) <= 2,
+      `宽画布(显示宽 1500)下输出应仍为 ${BASE_W * 2}x${BASE_H * 2}px, 实际 ${wideImage.width}x${wideImage.height}px`
+    );
+    assert(
+      results,
+      narrowImage.width === wideImage.width && narrowImage.height === wideImage.height,
+      '同一文档不同显示尺寸的页, 导出分辨率必须一致'
+    );
+
+    // scale 必须真实线性地改变输出分辨率
+    const halfScaleImage = await loadImage(
+      await renderScannedPageDataUrl(0, { ...renderConfig, scale: 1 }, DEFAULT_WATERMARK, null)
+    );
+    assert(
+      results,
+      Math.abs(halfScaleImage.width - BASE_W) <= 2 && Math.abs(halfScaleImage.height - BASE_H) <= 2,
+      `scale=1 时输出应为 ${BASE_W}x${BASE_H}px, 实际 ${halfScaleImage.width}x${halfScaleImage.height}px`
+    );
+
+    // 22. 输出必须真的有内容, 不能是纯白页
+    const narrowPixels = measureImage(narrowImage);
+    assert(
+      results,
+      narrowPixels.mean < 250,
+      `导出页不应接近纯白, 平均亮度 ${narrowPixels.mean.toFixed(1)} 应小于 250`
+    );
+    assert(
+      results,
+      narrowPixels.darkest < 200,
+      `导出页应含深色像素, 最暗值 ${narrowPixels.darkest.toFixed(1)} 应小于 200`
+    );
+
+    // 23. 入参未经清洗时(如上游直传原始对象)不得静默退化成 multiplier: undefined
+    const rawConfigImage = await loadImage(
+      await renderScannedPageDataUrl(0, { scale: 2, output_format: 'image/png' }, null, null)
+    );
+    assert(
+      results,
+      Math.abs(rawConfigImage.width - BASE_W * 2) <= 2,
+      `未清洗入参也应产出 ${BASE_W * 2}px 宽, 实际 ${rawConfigImage.width}px`
+    );
+
+    // 24. 该页没有画布时返回 null, 而不是抛错
+    const missing = await renderScannedPageDataUrl(99, renderConfig, DEFAULT_WATERMARK, null);
+    assert(results, missing === null, '页面无画布时应返回 null');
+  } finally {
+    setState({ fabricCanvases: previousCanvases });
+    narrow.canvas.dispose();
+    wide.canvas.dispose();
+    narrow.host.remove();
+    wide.host.remove();
+  }
 
   return results;
 }

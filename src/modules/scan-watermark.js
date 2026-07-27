@@ -3,6 +3,8 @@
  * 在扫描效果图上叠加文字水印(单个居中 或 平铺)。纯函数层。
  */
 
+import { parseBoolean } from '../utils/parse-boolean.js';
+
 export const DEFAULT_WATERMARK = {
   enabled: false,
   text: '机密',
@@ -21,27 +23,6 @@ const MAX_ANGLE = 180;
 
 // 平铺步长下限(像素): 防止异常字号导致步长 <= 0 而循环不终止
 const MIN_TILE_STEP = 4;
-
-/**
- * 解析不可信来源的布尔值。
- * 该值可能来自手工编辑或损坏的 localStorage 字符串,
- * 而 Boolean('false') 为 true, 故需显式识别表示"否"的字符串。
- * @param {*} value
- * @param {boolean} fallback
- * @returns {boolean}
- */
-function parseBoolean(value, fallback) {
-  if (value === undefined) {
-    return fallback;
-  }
-
-  if (typeof value === 'string') {
-    const normalized = value.trim().toLowerCase();
-    return !['', 'false', 'no', '0', 'off'].includes(normalized);
-  }
-
-  return Boolean(value);
-}
 
 /**
  * 校验并规范化水印配置

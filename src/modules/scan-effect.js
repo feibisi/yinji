@@ -8,6 +8,8 @@
  * 纯函数层: 不依赖应用状态、不操作业务 DOM。
  */
 
+import { parseBoolean } from '../utils/parse-boolean.js';
+
 export const COLORSPACES = ['gray', 'sRGB'];
 
 export const DEFAULT_SCAN_CONFIG = {
@@ -89,16 +91,8 @@ export function sanitizeScanConfig(raw) {
     config.colorspace = source.colorspace;
   }
 
-  if (source.border !== undefined) {
-    // 该值来自不可信的 localStorage, 可能是手工编辑的字符串。
-    // Boolean('false') 为 true, 故需显式识别表示"否"的字符串。
-    if (typeof source.border === 'string') {
-      const normalized = source.border.trim().toLowerCase();
-      config.border = !['', 'false', 'no', '0', 'off'].includes(normalized);
-    } else {
-      config.border = Boolean(source.border);
-    }
-  }
+  // border 来自不可信的 localStorage, 可能是手工编辑的字符串
+  config.border = parseBoolean(source.border, config.border);
 
   if (source.output_format === 'image/png' || source.output_format === 'image/jpeg') {
     config.output_format = source.output_format;

@@ -6,6 +6,8 @@
 import { getState } from '../core/state.js';
 import { generateSafeExportFilename } from '../utils/security.js';
 import { dataUrlToUint8Array } from '../utils/data-url.js';
+import { parseBoolean } from '../utils/parse-boolean.js';
+import { initializeFabricCanvasForPage } from './canvas-manager.js';
 import {
   applyScanEffect,
   createNoiseImage,
@@ -31,6 +33,9 @@ export const DEFAULT_SCAN_METADATA = {
 const SCANNER_CREATOR = 'Canon DR-C225 TWAIN';
 const SCANNER_PRODUCER = 'Canon ScanFront Image Processor';
 
+// JPEG 编码质量: 兼顾体积与扫描件可读性
+const JPEG_QUALITY = 0.92;
+
 /**
  * 校验并规范化元数据配置
  * @param {object} raw
@@ -46,13 +51,8 @@ export function sanitizeScanMetadata(raw) {
     }
   });
 
-  if (source.enabled !== undefined) {
-    metadata.enabled = Boolean(source.enabled);
-  }
-
-  if (source.scannerStyle !== undefined) {
-    metadata.scannerStyle = Boolean(source.scannerStyle);
-  }
+  metadata.enabled = parseBoolean(source.enabled, metadata.enabled);
+  metadata.scannerStyle = parseBoolean(source.scannerStyle, metadata.scannerStyle);
 
   return metadata;
 }
@@ -66,16 +66,33 @@ export function sanitizeScanMetadata(raw) {
  * @returns {Promise<string|null>}
  */
 export async function renderScannedPageDataUrl(pageIndex, config, watermark, noiseImage) {
+  // 公共入口(预览与导出共用), 调用方可能直传未清洗的对象, 故此处兜底
+  const safeConfig = sanitizeScanConfig(config);
+  const safeWatermark = sanitizeWatermark(watermark);
+
   const fabricCanvas = getState().fabricCanvases[pageIndex];
   if (!fabricCanvas) {
     return null;
   }
 
-  // 栅格化整页(含 PDF 背景 + 全部印章), multiplier 决定分辨率
-  const pageDataUrl = fabricCanvas.toDataURL({
-    format: 'png',
-    multiplier: config.scale,
-  });
+  // fabric 的 multiplier 与截取范围都基于 canvas 当前显示尺寸与 zoom, 而两者随窗口宽度、
+  // 用户缩放而浮动, 未访问过的页更是停留在 HTML 默认的 300x150。这里显式按原始基准尺寸
+  // 截取整页并归一化倍率, 使输出恒为 originalWidth x config.scale, 与视图状态解耦。
+  const baseWidth = Number(fabricCanvas.originalWidth) || Number(fabricCanvas.width) || 0;
+  const baseHeight = Number(fabricCanvas.originalHeight) || Number(fabricCanvas.height) || 0;
+  const zoom = Number(fabricCanvas.getZoom && fabricCanvas.getZoom()) || 1;
+
+  const pageDataUrl =
+    baseWidth > 0 && baseHeight > 0
+      ? fabricCanvas.toDataURL({
+          format: 'png',
+          multiplier: safeConfig.scale / zoom,
+          left: 0,
+          top: 0,
+          width: baseWidth * zoom,
+          height: baseHeight * zoom,
+        })
+      : fabricCanvas.toDataURL({ format: 'png', multiplier: safeConfig.scale });
 
   const source = new Image();
   await new Promise((resolve, reject) => {
@@ -85,11 +102,11 @@ export async function renderScannedPageDataUrl(pageIndex, config, watermark, noi
   });
 
   const target = document.createElement('canvas');
-  applyScanEffect(target, source, config, noiseImage);
-  applyWatermark(target, watermark);
+  applyScanEffect(target, source, safeConfig, noiseImage);
+  applyWatermark(target, safeWatermark);
 
-  const quality = config.output_format === 'image/jpeg' ? 0.92 : undefined;
-  return target.toDataURL(config.output_format, quality);
+  const quality = safeConfig.output_format === 'image/jpeg' ? JPEG_QUALITY : undefined;
+  return target.toDataURL(safeConfig.output_format, quality);
 }
 
 /**
@@ -102,9 +119,9 @@ export async function buildScannedPdfBytes({
   watermark,
   metadata,
   onProgress = () => {},
-}) {
-  const originalPdfBytes = getState().originalPdfBytes;
-  if (!originalPdfBytes) {
+} = {}) {
+  const { originalPdfBytes, pdfDoc } = getState();
+  if (!originalPdfBytes || !pdfDoc) {
     throw new Error('还没打开文件');
   }
 
@@ -113,18 +130,32 @@ export async function buildScannedPdfBytes({
   const safeMetadata = sanitizeScanMetadata(metadata);
 
   const { PDFDocument } = window.PDFLib;
-  // 读原始文档只为取每页尺寸, 输出是全新的图像 PDF
-  const sourceDoc = await PDFDocument.load(originalPdfBytes);
-  const sourcePages = sourceDoc.getPages();
-  const total = sourcePages.length;
+  const total = pdfDoc.numPages;
 
   const noiseImage = await createNoiseImage(safeConfig.noise);
   const outputDoc = await PDFDocument.create();
 
-  for (let i = 0; i < total; i++) {
-    onProgress(i + 1, total);
+  // 记录未能渲染的页号, 结束时汇总告知用户, 不做静默降级
+  const blankPages = [];
 
-    const { width, height } = sourcePages[i].getSize();
+  for (let i = 0; i < total; i++) {
+    const pageNum = i + 1;
+    onProgress(pageNum, total);
+
+    // 页面尺寸取自 pdf.js viewport: 它已计入 /Rotate, 与 fabric 画布宽高比一致。
+    // pdf-lib 的 getSize() 返回未旋转的 MediaBox, 会把横向页压扁成纵向。
+    const sourcePage = await pdfDoc.getPage(pageNum);
+    const { width, height } = sourcePage.getViewport({ scale: 1 });
+
+    // 画布只在用户翻页时才初始化, 未访问过的页若直接跳过会静默输出纯白页(内容丢失)
+    if (!getState().fabricCanvases[i]) {
+      try {
+        await initializeFabricCanvasForPage(pageNum);
+      } catch (error) {
+        console.warn(`第 ${pageNum} 页画布初始化失败:`, error);
+      }
+    }
+
     const scannedDataUrl = await renderScannedPageDataUrl(
       i,
       safeConfig,
@@ -135,7 +166,9 @@ export async function buildScannedPdfBytes({
     const page = outputDoc.addPage([width, height]);
 
     if (!scannedDataUrl) {
-      // 该页没有 canvas(未初始化) 时保留空白页, 保证页数一致
+      // 初始化后仍拿不到画布: 保留空白页维持页数一致, 但必须留痕
+      console.warn(`第 ${pageNum} 页画布不可用, 已输出为空白页`);
+      blankPages.push(pageNum);
       continue;
     }
 
@@ -165,6 +198,17 @@ export async function buildScannedPdfBytes({
     const now = new Date();
     outputDoc.setCreationDate(now);
     outputDoc.setModificationDate(now);
+  } else {
+    // pdf-lib 保存时无条件写入自己的 Producer/Creator 署名。用户没要求写元数据时,
+    // 输出不应自报生成工具, 故置空 —— 中和署名而非伪装成任何设备。
+    outputDoc.setProducer('');
+    outputDoc.setCreator('');
+  }
+
+  if (blankPages.length > 0) {
+    window.Toast?.warning?.(
+      `有 ${blankPages.length} 页未能渲染，已输出为空白页：第 ${blankPages.join('、')} 页。`
+    );
   }
 
   return outputDoc.save();
@@ -217,11 +261,11 @@ export async function exportScannedPdf({
     // 延迟撤销: 部分浏览器在下载真正开始前撤销会导致下载失败
     setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 
-    window.Loading.hide();
     window.Toast.success(`已开始下载：${safeFilename}`);
   } catch (error) {
     console.error('导出扫描件失败:', error);
-    window.Loading.hide();
     window.Toast.error('导出扫描件失败，详情请查看控制台。', 0);
+  } finally {
+    window.Loading.hide();
   }
 }
