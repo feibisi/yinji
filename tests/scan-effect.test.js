@@ -7,6 +7,11 @@ import {
   createNoiseImage,
   applyScanEffect,
 } from '../src/modules/scan-effect.js';
+import {
+  DEFAULT_WATERMARK,
+  sanitizeWatermark,
+  applyWatermark,
+} from '../src/modules/scan-watermark.js';
 
 function createResults() {
   return {
@@ -148,6 +153,46 @@ export async function runScanEffectTests() {
   const bctx = bordered.getContext('2d');
   const corner = bctx.getImageData(0, 0, 1, 1).data;
   assert(results, corner[0] < 200, 'border=true 时左上角应为深色');
+
+  // 11. 水印默认关闭
+  assert(results, DEFAULT_WATERMARK.enabled === false, '水印默认应关闭');
+  assert(results, typeof DEFAULT_WATERMARK.text === 'string', '水印应有默认文本字段');
+
+  // 12. sanitizeWatermark 钳制透明度与字号
+  const wm = sanitizeWatermark({ opacity: 99, fontSize: -3, text: 123, enabled: 'y' });
+  assert(results, wm.opacity <= 1 && wm.opacity >= 0, '透明度应钳制到 0~1');
+  assert(results, wm.fontSize > 0, '字号应为正数');
+  assert(results, typeof wm.text === 'string', '文本应转为字符串');
+  assert(results, wm.enabled === true, "enabled 'y' 应转 true");
+
+  // 13. 关闭时不改动画布
+  const untouched = document.createElement('canvas');
+  applyScanEffect(untouched, source, { ...DEFAULT_SCAN_CONFIG, noise: 0, rotate: 0, rotate_var: 0 }, null);
+  const beforeLum = meanLuminance(untouched);
+  applyWatermark(untouched, { ...DEFAULT_WATERMARK, enabled: false, text: '机密' });
+  assert(results, Math.abs(meanLuminance(untouched) - beforeLum) < 0.001, '水印关闭时不应改动画布');
+
+  // 14. 开启时改变画面
+  const marked = document.createElement('canvas');
+  applyScanEffect(marked, source, { ...DEFAULT_SCAN_CONFIG, noise: 0, rotate: 0, rotate_var: 0 }, null);
+  const plainLum = meanLuminance(marked);
+  applyWatermark(marked, { ...DEFAULT_WATERMARK, enabled: true, text: '机密', fontSize: 24, opacity: 0.8, color: '#ff0000' });
+  assert(results, Math.abs(meanLuminance(marked) - plainLum) > 0.05, '水印开启应改变画面');
+
+  // 15. 平铺模式比单个水印覆盖更多像素
+  const single = document.createElement('canvas');
+  applyScanEffect(single, source, { ...DEFAULT_SCAN_CONFIG, noise: 0, rotate: 0, rotate_var: 0 }, null);
+  const singleBase = meanLuminance(single);
+  applyWatermark(single, { ...DEFAULT_WATERMARK, enabled: true, text: '密', fontSize: 16, opacity: 1, color: '#000000', repeat: false });
+  const singleDelta = Math.abs(meanLuminance(single) - singleBase);
+
+  const tiled = document.createElement('canvas');
+  applyScanEffect(tiled, source, { ...DEFAULT_SCAN_CONFIG, noise: 0, rotate: 0, rotate_var: 0 }, null);
+  const tiledBase = meanLuminance(tiled);
+  applyWatermark(tiled, { ...DEFAULT_WATERMARK, enabled: true, text: '密', fontSize: 16, opacity: 1, color: '#000000', repeat: true });
+  const tiledDelta = Math.abs(meanLuminance(tiled) - tiledBase);
+
+  assert(results, tiledDelta > singleDelta, '平铺水印应覆盖更多像素');
 
   return results;
 }
