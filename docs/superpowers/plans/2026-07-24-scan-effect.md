@@ -21,6 +21,13 @@
 - **验证命令**：改 JS 后跑 `node --check <file>`；改交互后跑 `node tools/ai/yinji-cli.mjs smoke --pdf ./test-fixture.pdf`。测试需 headless chromium 在 `127.0.0.1:9222` + http 服务在 `127.0.0.1:8123`。
 - **spec 来源**：`docs/superpowers/specs/2026-07-24-scan-effect-design.md`
 
+> **测试风格注记（Task 1 执行后已变更，Tasks 2/3 追加测试时必须遵守）**：
+> `tests/scan-effect.test.js` 已统一为与 `tests/validators.test.js`/`tests/state.test.js`
+> 相同的**累加式**断言，签名为 `assert(results, condition, message)`，
+> `runScanEffectTests()` 返回 `{passed, failed, tests}`。
+> 下方各任务示例代码中形如 `assert(条件, '消息')` 与 `results.push('...')` 的写法为旧式，
+> 追加测试时改用累加式调用，**断言的条件表达式与阈值保持逐字不变**。
+
 ### 测试环境启动（每个含浏览器测试的任务开头都需确保）
 
 ```bash
