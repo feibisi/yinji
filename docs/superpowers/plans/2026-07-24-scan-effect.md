@@ -103,6 +103,10 @@ function makeSourceCanvas(width, height) {
   ctx.fillRect(0, 0, width, height);
   ctx.fillStyle = 'black';
   ctx.fillRect(10, 10, 40, 20);
+  // 中灰区: CSS brightness()/contrast() 是乘法, 纯黑(0)与纯白(255)都不可观测
+  // (0×n=0, 255 已封顶), 必须有中间灰阶才能验证这类参数真实生效。
+  ctx.fillStyle = '#808080';
+  ctx.fillRect(10, 40, 60, 30);
   return canvas;
 }
 
@@ -114,6 +118,21 @@ function meanLuminance(canvas) {
     sum += (data[i] + data[i + 1] + data[i + 2]) / 3;
   }
   return sum / (data.length / 4);
+}
+
+// 暖色偏移: 红通道均值 - 蓝通道均值。
+// sepia() 是色相偏移而非亮度偏移(对白色降均值、对中灰升均值, 会互相抵消),
+// 故用通道差值度量泛黄是否真实生效。
+function warmth(canvas) {
+  const ctx = canvas.getContext('2d');
+  const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  let r = 0;
+  let b = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    r += data[i];
+    b += data[i + 2];
+  }
+  return (r - b) / (data.length / 4);
 }
 
 async function runScanEffectTests() {
@@ -179,12 +198,14 @@ async function runScanEffectTests() {
   assert(out.width === 120 && out.height === 80, '输出尺寸应等于源尺寸');
   results.push('输出尺寸正确');
 
-  // 8. 泛黄(yellowish)会改变画面 —— 效果确实生效
+  // 8. 泛黄(yellowish)产生暖色偏移 —— 效果确实生效
+  //    注: sepia() 是色相偏移而非亮度偏移(对白色降均值、对中灰升均值, 会互相抵消),
+  //    故必须用通道差值(warmth)度量, 不能用平均亮度。实测 warmth 随 yellowish 单调上升。
   const plain = document.createElement('canvas');
   applyScanEffect(plain, source, { ...DEFAULT_SCAN_CONFIG, noise: 0, rotate: 0, rotate_var: 0, yellowish: 0 }, null);
   const sepia = document.createElement('canvas');
   applyScanEffect(sepia, source, { ...DEFAULT_SCAN_CONFIG, noise: 0, rotate: 0, rotate_var: 0, yellowish: 1 }, null);
-  assert(Math.abs(meanLuminance(plain) - meanLuminance(sepia)) > 1, '泛黄应改变平均亮度');
+  assert(warmth(sepia) - warmth(plain) > 5, '泛黄应产生暖色偏移(红高于蓝)');
   results.push('泛黄生效');
 
   // 9. 亮度参数生效(调亮 => 平均亮度升高)
