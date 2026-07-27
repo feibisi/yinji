@@ -176,6 +176,10 @@ function removePreviewLayer() {
     previewTimer = null;
   }
   unbindCanvasEvents();
+  // 关闭预览开关这条路径只调这个函数、不经过 renderPreview(), 提示要在这里一并收起,
+  // 否则暂停档关掉预览后, "预览已暂停"提示会永久卡在可见状态。
+  // 暂停分支里调用顺序是先 removePreviewLayer() 再置提示为 true, 这里清 false 不会误清它。
+  setPreviewPausedHint(false);
 }
 
 function isPreviewOn() {
