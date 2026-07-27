@@ -13,6 +13,36 @@ export const DEFAULT_WATERMARK = {
   repeat: true,
 };
 
+// sanitizeWatermark 钳制边界
+const MAX_TEXT_LENGTH = 100;
+const MIN_FONT_SIZE = 8;
+const MAX_FONT_SIZE = 400;
+const MAX_ANGLE = 180;
+
+// 平铺步长下限(像素): 防止异常字号导致步长 <= 0 而循环不终止
+const MIN_TILE_STEP = 4;
+
+/**
+ * 解析不可信来源的布尔值。
+ * 该值可能来自手工编辑或损坏的 localStorage 字符串,
+ * 而 Boolean('false') 为 true, 故需显式识别表示"否"的字符串。
+ * @param {*} value
+ * @param {boolean} fallback
+ * @returns {boolean}
+ */
+function parseBoolean(value, fallback) {
+  if (value === undefined) {
+    return fallback;
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    return !['', 'false', 'no', '0', 'off'].includes(normalized);
+  }
+
+  return Boolean(value);
+}
+
 /**
  * 校验并规范化水印配置
  * @param {object} raw
@@ -22,17 +52,15 @@ export function sanitizeWatermark(raw) {
   const source = raw && typeof raw === 'object' ? raw : {};
   const watermark = { ...DEFAULT_WATERMARK };
 
-  if (source.enabled !== undefined) {
-    watermark.enabled = Boolean(source.enabled);
-  }
+  watermark.enabled = parseBoolean(source.enabled, watermark.enabled);
 
   if (source.text !== undefined && source.text !== null) {
-    watermark.text = String(source.text).slice(0, 100);
+    watermark.text = String(source.text).slice(0, MAX_TEXT_LENGTH);
   }
 
   const fontSize = Number(source.fontSize);
   if (Number.isFinite(fontSize)) {
-    watermark.fontSize = Math.min(400, Math.max(8, fontSize));
+    watermark.fontSize = Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, fontSize));
   }
 
   const opacity = Number(source.opacity);
@@ -42,16 +70,20 @@ export function sanitizeWatermark(raw) {
 
   const angle = Number(source.angle);
   if (Number.isFinite(angle)) {
-    watermark.angle = Math.min(180, Math.max(-180, angle));
+    watermark.angle = Math.min(MAX_ANGLE, Math.max(-MAX_ANGLE, angle));
   }
 
   if (typeof source.color === 'string' && source.color.trim()) {
-    watermark.color = source.color.trim();
+    const candidate = source.color.trim();
+    // 非法颜色会被 canvas fillStyle 静默忽略(保留前值), 故显式校验后回落默认色
+    const supportsColor =
+      typeof CSS !== 'undefined' && typeof CSS.supports === 'function'
+        ? CSS.supports('color', candidate)
+        : true;
+    watermark.color = supportsColor ? candidate : DEFAULT_WATERMARK.color;
   }
 
-  if (source.repeat !== undefined) {
-    watermark.repeat = Boolean(source.repeat);
-  }
+  watermark.repeat = parseBoolean(source.repeat, watermark.repeat);
 
   return watermark;
 }
@@ -89,8 +121,10 @@ export function applyWatermark(canvas, watermark) {
 
   if (watermark.repeat) {
     const metrics = ctx.measureText(text);
-    const stepX = Math.max(metrics.width + watermark.fontSize * 2, watermark.fontSize * 4);
-    const stepY = watermark.fontSize * 4;
+    // 步长必须为正, 否则循环永不终止(挂死浏览器)。
+    // applyWatermark 可能被传入未经 sanitizeWatermark 清洗的配置, 故此处兜底。
+    const stepX = Math.max(metrics.width + watermark.fontSize * 2, watermark.fontSize * 4, MIN_TILE_STEP);
+    const stepY = Math.max(watermark.fontSize * 4, MIN_TILE_STEP);
     // 覆盖旋转后的对角范围, 保证边角也有水印
     const reach = Math.ceil(Math.sqrt(width * width + height * height) / 2);
 

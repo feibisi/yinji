@@ -194,6 +194,43 @@ export async function runScanEffectTests() {
 
   assert(results, tiledDelta > singleDelta, '平铺水印应覆盖更多像素');
 
+  // 16. 水印布尔字段: 脏 localStorage 里的 false 类字符串不得被当成 true
+  const wmFalse = sanitizeWatermark({ enabled: 'false', repeat: '0' });
+  assert(results, wmFalse.enabled === false, "水印 enabled 字符串 'false' 应转为 false");
+  assert(results, wmFalse.repeat === false, "水印 repeat 字符串 '0' 应转为 false");
+  const wmOff = sanitizeWatermark({ enabled: ' OFF ', repeat: 'no' });
+  assert(results, wmOff.enabled === false, "水印 enabled ' OFF '(含空格大写) 应转为 false");
+  assert(results, wmOff.repeat === false, "水印 repeat 'no' 应转为 false");
+  const wmTrue = sanitizeWatermark({ enabled: 'y', repeat: true });
+  assert(results, wmTrue.enabled === true, "水印 enabled 'y' 应仍为 true");
+  assert(results, wmTrue.repeat === true, '水印 repeat 真布尔应仍为 true');
+
+  // 17. 非法颜色应回落默认色
+  const wmBadColor = sanitizeWatermark({ color: 'not-a-color' });
+  assert(results, wmBadColor.color === DEFAULT_WATERMARK.color, '非法颜色应回落默认色');
+  const wmGoodColor = sanitizeWatermark({ color: '#ff0000' });
+  assert(results, wmGoodColor.color === '#ff0000', '合法颜色应被采纳');
+
+  // 18. 异常字号下平铺不得挂死(step 兜底): 能在有限时间内返回即算通过。
+  // 若死循环守卫失效, 下面这行会挂住/超时而永远到不了 assert, 这是有意的设计而非空断言。
+  const hangCanvas = document.createElement('canvas');
+  applyScanEffect(hangCanvas, source, { ...DEFAULT_SCAN_CONFIG, noise: 0, rotate: 0, rotate_var: 0 }, null);
+  applyWatermark(hangCanvas, {
+    enabled: true,
+    text: '密',
+    fontSize: 0,
+    color: '#000000',
+    opacity: 1,
+    angle: 0,
+    repeat: true,
+  });
+  assert(results, true, '异常字号(0)平铺水印不挂死');
+
+  // 19. angle 与超长文本钳制
+  const wmClamp = sanitizeWatermark({ angle: 999, text: 'x'.repeat(500) });
+  assert(results, wmClamp.angle === 180, '越界 angle 应钳制到 180');
+  assert(results, wmClamp.text.length === 100, '超长文本应截断到 100 字');
+
   return results;
 }
 
