@@ -8,10 +8,23 @@ import {
   applyScanEffect,
 } from '../src/modules/scan-effect.js';
 
-function assert(condition, message) {
-  if (!condition) {
-    throw new Error(message);
+function createResults() {
+  return {
+    passed: 0,
+    failed: 0,
+    tests: [],
+  };
+}
+
+function assert(results, condition, message) {
+  if (condition) {
+    results.passed += 1;
+    results.tests.push({ status: 'PASS', message });
+    return;
   }
+
+  results.failed += 1;
+  results.tests.push({ status: 'FAIL', message });
 }
 
 function makeSourceCanvas(width, height) {
@@ -55,27 +68,25 @@ function warmth(canvas) {
   return (r - b) / (data.length / 4);
 }
 
-async function runScanEffectTests() {
-  const results = [];
+export async function runScanEffectTests() {
+  const results = createResults();
 
   // 1. 默认值必须与 lookscanned 一致
-  assert(DEFAULT_SCAN_CONFIG.rotate === 1, 'rotate 默认应为 1');
-  assert(DEFAULT_SCAN_CONFIG.rotate_var === 0.5, 'rotate_var 默认应为 0.5');
-  assert(DEFAULT_SCAN_CONFIG.colorspace === 'gray', 'colorspace 默认应为 gray');
-  assert(DEFAULT_SCAN_CONFIG.blur === 0.5, 'blur 默认应为 0.5');
-  assert(DEFAULT_SCAN_CONFIG.noise === 0.25, 'noise 默认应为 0.25');
-  assert(DEFAULT_SCAN_CONFIG.border === false, 'border 默认应为 false');
-  assert(DEFAULT_SCAN_CONFIG.scale === 2, 'scale 默认应为 2');
-  assert(DEFAULT_SCAN_CONFIG.brightness === 1, 'brightness 默认应为 1');
-  assert(DEFAULT_SCAN_CONFIG.yellowish === 0, 'yellowish 默认应为 0');
-  assert(DEFAULT_SCAN_CONFIG.contrast === 1, 'contrast 默认应为 1');
-  assert(DEFAULT_SCAN_CONFIG.output_format === 'image/jpeg', 'output_format 默认应为 image/jpeg');
-  results.push('默认配置一致');
+  assert(results, DEFAULT_SCAN_CONFIG.rotate === 1, 'rotate 默认应为 1');
+  assert(results, DEFAULT_SCAN_CONFIG.rotate_var === 0.5, 'rotate_var 默认应为 0.5');
+  assert(results, DEFAULT_SCAN_CONFIG.colorspace === 'gray', 'colorspace 默认应为 gray');
+  assert(results, DEFAULT_SCAN_CONFIG.blur === 0.5, 'blur 默认应为 0.5');
+  assert(results, DEFAULT_SCAN_CONFIG.noise === 0.25, 'noise 默认应为 0.25');
+  assert(results, DEFAULT_SCAN_CONFIG.border === false, 'border 默认应为 false');
+  assert(results, DEFAULT_SCAN_CONFIG.scale === 2, 'scale 默认应为 2');
+  assert(results, DEFAULT_SCAN_CONFIG.brightness === 1, 'brightness 默认应为 1');
+  assert(results, DEFAULT_SCAN_CONFIG.yellowish === 0, 'yellowish 默认应为 0');
+  assert(results, DEFAULT_SCAN_CONFIG.contrast === 1, 'contrast 默认应为 1');
+  assert(results, DEFAULT_SCAN_CONFIG.output_format === 'image/jpeg', 'output_format 默认应为 image/jpeg');
 
   // 2. 范围表
-  assert(SCAN_PARAM_RANGES.rotate.min === -10 && SCAN_PARAM_RANGES.rotate.max === 10, 'rotate 范围应为 -10~10');
-  assert(SCAN_PARAM_RANGES.scale.step === 0.5, 'scale step 应为 0.5');
-  results.push('参数范围正确');
+  assert(results, SCAN_PARAM_RANGES.rotate.min === -10 && SCAN_PARAM_RANGES.rotate.max === 10, 'rotate 范围应为 -10~10');
+  assert(results, SCAN_PARAM_RANGES.scale.step === 0.5, 'scale step 应为 0.5');
 
   // 3. sanitize: 越界钳制 + 脏类型回落 + 未知键剔除
   const cleaned = sanitizeScanConfig({
@@ -86,59 +97,57 @@ async function runScanEffectTests() {
     border: 'yes',
     evil: 1,
   });
-  assert(cleaned.rotate === 10, '越界 rotate 应钳制到 10');
-  assert(cleaned.blur === 0, '越界 blur 应钳制到 0');
-  assert(cleaned.colorspace === 'gray', '非法 colorspace 应回落 gray');
-  assert(cleaned.noise === DEFAULT_SCAN_CONFIG.noise, '非数字 noise 应回落默认');
-  assert(cleaned.border === true, "字符串 'yes' 应转为布尔 true");
-  assert(!('evil' in cleaned), '未知键应被剔除');
-  results.push('sanitizeScanConfig 正确');
+  assert(results, cleaned.rotate === 10, '越界 rotate 应钳制到 10');
+  assert(results, cleaned.blur === 0, '越界 blur 应钳制到 0');
+  assert(results, cleaned.colorspace === 'gray', '非法 colorspace 应回落 gray');
+  assert(results, cleaned.noise === DEFAULT_SCAN_CONFIG.noise, '非数字 noise 应回落默认');
+  assert(results, cleaned.border === true, "字符串 'yes' 应转为布尔 true");
+  assert(results, !('evil' in cleaned), '未知键应被剔除');
+
+  // 3b. sanitize: 表示"否"的字符串不应被误转为 true
+  const falsy = sanitizeScanConfig({ border: 'false' });
+  assert(results, falsy.border === false, "字符串 'false' 应转为布尔 false");
+  const falsy2 = sanitizeScanConfig({ border: '0' });
+  assert(results, falsy2.border === false, "字符串 '0' 应转为布尔 false");
 
   // 4. 预设存在且合法
-  assert(SCAN_PRESETS.light && SCAN_PRESETS.standard && SCAN_PRESETS.mono, '应有三个预设');
-  assert(SCAN_PRESETS.mono.colorspace === 'gray', '黑白复印预设应为 gray');
-  results.push('预设存在');
+  assert(results, SCAN_PRESETS.light && SCAN_PRESETS.standard && SCAN_PRESETS.mono, '应有三个预设');
+  assert(results, SCAN_PRESETS.mono.colorspace === 'gray', '黑白复印预设应为 gray');
 
   // 5. 噪点 SVG 随 noise 变化
   const svgA = getNoiseSVG(0.25);
   const svgB = getNoiseSVG(0.75);
-  assert(svgA.includes('feTurbulence'), '噪点 SVG 应含 feTurbulence');
-  assert(svgA !== svgB, '不同 noise 应生成不同 SVG');
-  results.push('噪点 SVG 生成正确');
+  assert(results, svgA.includes('feTurbulence'), '噪点 SVG 应含 feTurbulence');
+  assert(results, svgA !== svgB, '不同 noise 应生成不同 SVG');
 
   // 6. noise=0 时不产生噪点图
   const noNoise = await createNoiseImage(0);
-  assert(noNoise === null, 'noise=0 应返回 null');
-  results.push('noise=0 跳过噪点');
+  assert(results, noNoise === null, 'noise=0 应返回 null');
 
   // 7. applyScanEffect 输出尺寸 = 源尺寸
   const source = makeSourceCanvas(120, 80);
   const out = document.createElement('canvas');
   applyScanEffect(out, source, { ...DEFAULT_SCAN_CONFIG, noise: 0, rotate: 0, rotate_var: 0 }, null);
-  assert(out.width === 120 && out.height === 80, '输出尺寸应等于源尺寸');
-  results.push('输出尺寸正确');
+  assert(results, out.width === 120 && out.height === 80, '输出尺寸应等于源尺寸');
 
   // 8. 泛黄(yellowish)会改变画面 —— 效果确实生效
   const plain = document.createElement('canvas');
   applyScanEffect(plain, source, { ...DEFAULT_SCAN_CONFIG, noise: 0, rotate: 0, rotate_var: 0, yellowish: 0 }, null);
   const sepia = document.createElement('canvas');
   applyScanEffect(sepia, source, { ...DEFAULT_SCAN_CONFIG, noise: 0, rotate: 0, rotate_var: 0, yellowish: 1 }, null);
-  assert(warmth(sepia) - warmth(plain) > 5, '泛黄应产生暖色偏移(红高于蓝)');
-  results.push('泛黄生效');
+  assert(results, warmth(sepia) - warmth(plain) > 5, '泛黄应产生暖色偏移(红高于蓝)');
 
   // 9. 亮度参数生效(调亮 => 平均亮度升高)
   const bright = document.createElement('canvas');
   applyScanEffect(bright, source, { ...DEFAULT_SCAN_CONFIG, noise: 0, rotate: 0, rotate_var: 0, brightness: 1.8 }, null);
-  assert(meanLuminance(bright) > meanLuminance(plain), '提高 brightness 应提升平均亮度');
-  results.push('亮度生效');
+  assert(results, meanLuminance(bright) > meanLuminance(plain), '提高 brightness 应提升平均亮度');
 
   // 10. border 会在边缘画深色线
   const bordered = document.createElement('canvas');
   applyScanEffect(bordered, source, { ...DEFAULT_SCAN_CONFIG, noise: 0, rotate: 0, rotate_var: 0, border: true }, null);
   const bctx = bordered.getContext('2d');
   const corner = bctx.getImageData(0, 0, 1, 1).data;
-  assert(corner[0] < 200, 'border=true 时左上角应为深色');
-  results.push('边框生效');
+  assert(results, corner[0] < 200, 'border=true 时左上角应为深色');
 
   return results;
 }

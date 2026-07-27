@@ -90,7 +90,14 @@ export function sanitizeScanConfig(raw) {
   }
 
   if (source.border !== undefined) {
-    config.border = Boolean(source.border);
+    // 该值来自不可信的 localStorage, 可能是手工编辑的字符串。
+    // Boolean('false') 为 true, 故需显式识别表示"否"的字符串。
+    if (typeof source.border === 'string') {
+      const normalized = source.border.trim().toLowerCase();
+      config.border = !['', 'false', 'no', '0', 'off'].includes(normalized);
+    } else {
+      config.border = Boolean(source.border);
+    }
   }
 
   if (source.output_format === 'image/png' || source.output_format === 'image/jpeg') {
