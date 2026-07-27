@@ -16,13 +16,13 @@
 }
 
 .scan-field label {
-  color: #555;
+  color: var(--text-color-secondary);
 }
 
 .scan-value {
   text-align: right;
   font-variant-numeric: tabular-nums;
-  color: #666;
+  color: var(--text-color-secondary);
   font-size: 12px;
 }
 
@@ -30,7 +30,7 @@
   grid-column: 2 / 4;
   width: 100%;
   padding: 4px 8px;
-  border: 1px solid #d0d0d0;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   font-size: 13px;
 }
@@ -46,21 +46,21 @@
 
 .scan-more {
   margin: 10px 0;
-  border-top: 1px solid #eee;
+  border-top: 1px solid var(--border-color);
   padding-top: 8px;
 }
 
 .scan-more > summary {
   cursor: pointer;
   font-size: 13px;
-  color: #555;
+  color: var(--text-color-secondary);
   margin-bottom: 8px;
 }
 
 .scan-hint {
   margin-top: 8px;
   font-size: 12px;
-  color: #888;
+  color: var(--text-color-light);
   line-height: 1.5;
 }
 

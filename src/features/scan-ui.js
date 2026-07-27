@@ -23,9 +23,11 @@ import {
 } from '../modules/scan-export.js';
 
 const STORAGE_KEY = 'yinji-scan-config';
-const PREVIEW_DEBOUNCE_MS = 150;
-// 预览固定用最低分辨率, 保证拖动滑块时也能跟手; 导出仍按用户选的 scale
-const PREVIEW_SCALE = 1;
+// 预览与导出走同一条渲染路径(同 scale、同 output_format), 所见即所得。
+// 代价是高 DPI 下单页渲染要一秒上下, 故防抖放宽到 300ms, 避免拖滑块时排队。
+const PREVIEW_DEBOUNCE_MS = 300;
+// 画布内容变化事件: 加章/拖动/删除都要让预览跟着更新
+const CANVAS_MUTATION_EVENTS = ['object:added', 'object:modified', 'object:removed'];
 
 let initialized = false;
 let scanConfig = { ...DEFAULT_SCAN_CONFIG };
@@ -35,8 +37,12 @@ let previewTimer = null;
 let previewLayer = null;
 // 渲染令牌: 防止先发的慢渲染后到, 把新参数的预览图覆盖回旧的
 let previewToken = 0;
+// 有渲染在途: 自愈重渲染据此避让, 否则频繁 setState 会不停打断在途渲染
+let previewRendering = false;
 let lastPreviewPage = 0;
 let lastPreviewZoom = 0;
+// 当前已挂监听的画布, 翻页时先解绑再绑新的, 防止监听器泄漏到旧画布
+let boundCanvas = null;
 let exporting = false;
 
 export function getScanConfig() {
@@ -160,11 +166,60 @@ function removePreviewLayer() {
   previewLayer = null;
   lastPreviewPage = 0;
   lastPreviewZoom = 0;
+  // 令牌前进 + 掐掉待触发的定时器: 否则在途渲染回来时会发现 previewLayer 为空,
+  // 于是新建一张图挂上去 —— 开关已经关了, 页面上却盖着一张消不掉的幽灵预览。
+  previewToken += 1;
+  previewRendering = false;
+  if (previewTimer) {
+    clearTimeout(previewTimer);
+    previewTimer = null;
+  }
+  unbindCanvasEvents();
 }
 
 function isPreviewOn() {
   const toggle = el('scan-preview-toggle');
   return Boolean(toggle && toggle.checked);
+}
+
+/**
+ * 判断本轮渲染是否已作废: 令牌被后来者顶掉, 或用户中途关了预览开关。
+ * 每个 await 之后都要查一次, 任何异步间隙里的关开关/切页都能立即中止。
+ * @param {number} token
+ * @returns {boolean}
+ */
+function isPreviewStale(token) {
+  return token !== previewToken || !isPreviewOn();
+}
+
+/** 画布内容变了(加章/移动/删除), 预览要跟上 */
+function handleCanvasMutation() {
+  if (!isPreviewOn()) {
+    return;
+  }
+  schedulePreview();
+}
+
+function unbindCanvasEvents() {
+  if (!boundCanvas) {
+    return;
+  }
+  CANVAS_MUTATION_EVENTS.forEach((name) => {
+    boundCanvas.off(name, handleCanvasMutation);
+  });
+  boundCanvas = null;
+}
+
+/** 把画布变更监听挂到当前页画布上(翻页时自动搬家) */
+function bindCanvasEvents(fabricCanvas) {
+  if (!fabricCanvas || fabricCanvas === boundCanvas) {
+    return;
+  }
+  unbindCanvasEvents();
+  CANVAS_MUTATION_EVENTS.forEach((name) => {
+    fabricCanvas.on(name, handleCanvasMutation);
+  });
+  boundCanvas = fabricCanvas;
 }
 
 /** 渲染当前页扫描预览到覆盖层 */
@@ -183,27 +238,31 @@ async function renderPreview() {
     return;
   }
 
+  bindCanvasEvents(fabricCanvas);
+
   // 挂到 fabric 的 .canvas-container 上: 只有它是定位元素, 且尺寸与画布严格一致。
   // .canvas-wrapper 自带 2rem 内边距又非定位元素, 直接挂上去会错位。
   const mount = wrapper.querySelector('.canvas-container') || wrapper;
   const token = ++previewToken;
+  previewRendering = true;
 
   try {
     const noiseImage = await createNoiseImage(scanConfig.noise);
-    const previewConfig = {
-      ...scanConfig,
-      scale: PREVIEW_SCALE,
-      output_format: 'image/png',
-    };
+    if (isPreviewStale(token)) {
+      return;
+    }
+
+    // 不覆盖 scale 与 output_format: 预览用什么分辨率和编码, 导出就是什么。
+    // blur 是像素绝对值、边框是 1px 定值, 降分辨率预览会系统性高估模糊, 调出来的参数是假的。
     const dataUrl = await renderScannedPageDataUrl(
       pageNum - 1,
-      previewConfig,
+      { ...scanConfig },
       watermarkConfig,
       noiseImage
     );
 
-    // 期间又发起了新一轮渲染, 本次结果作废
-    if (token !== previewToken) {
+    // 期间又发起了新一轮渲染(或用户关了开关), 本次结果作废
+    if (isPreviewStale(token)) {
       return;
     }
 
@@ -236,6 +295,11 @@ async function renderPreview() {
     console.error('扫描预览失败:', error);
     if (token === previewToken) {
       removePreviewLayer();
+    }
+  } finally {
+    // 令牌被顶掉说明后来者接管了这个标记, 不能在这里清掉
+    if (token === previewToken) {
+      previewRendering = false;
     }
   }
 }
@@ -354,7 +418,7 @@ function handleExportClick() {
     });
 }
 
-/** 翻页或缩放后预览会挂在错误的页/尺寸上, 需要重渲染 */
+/** 翻页、缩放、换文件后预览会挂错页/错尺寸甚至整个被删掉, 需要重渲染 */
 function handleStateChange() {
   if (!isPreviewOn()) {
     return;
@@ -362,7 +426,13 @@ function handleStateChange() {
 
   const { globalZoomMultiplier } = getState();
   const pageNum = getCurrentActivePage();
-  if (pageNum === lastPreviewPage && globalZoomMultiplier === lastPreviewZoom) {
+  const viewChanged =
+    pageNum !== lastPreviewPage || globalZoomMultiplier !== lastPreviewZoom;
+  // 换文件时 pdf-loader 会重建 .canvas-wrapper, 连带删掉预览层, 而页号/缩放都"没变",
+  // 只比这两项会让预览永远回不来。故再看一眼预览层是否还在文档里, 不在就自愈重渲。
+  const layerLost = !previewLayer || !previewLayer.isConnected;
+
+  if (!viewChanged && !(layerLost && !previewRendering)) {
     return;
   }
 
@@ -370,6 +440,9 @@ function handleStateChange() {
 }
 
 export function setupScanUI() {
+  // 本函数先于 setupToolbarSections() 执行, 此时面板节点还在 index.html 的原始位置。
+  // 之所以绑定不会丢, 是因为 toolbar-sections.js 用 appendChild 搬运节点(移动, 非克隆),
+  // 监听器随节点一起走。若将来改成 cloneNode, 这里所有绑定都会静默失效。
   const section = document.querySelector('[data-section-key="export-scan"]');
   if (!section || initialized) {
     return;
