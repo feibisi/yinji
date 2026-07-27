@@ -37,6 +37,23 @@ const SCANNER_PRODUCER = 'Canon ScanFront Image Processor';
 const JPEG_QUALITY = 0.92;
 
 /**
+ * 取有限正数, 依次尝试首选值与备选值, 都不合法时返回 0。
+ * 用于栅格化尺寸计算, 防止 0/NaN/Infinity/负数传入 toDataURL。
+ * @param {*} value
+ * @param {*} fallback
+ * @returns {number}
+ */
+function toPositiveNumber(value, fallback) {
+  const primary = Number(value);
+  if (Number.isFinite(primary) && primary > 0) {
+    return primary;
+  }
+
+  const spare = Number(fallback);
+  return Number.isFinite(spare) && spare > 0 ? spare : 0;
+}
+
+/**
  * 校验并规范化元数据配置
  * @param {object} raw
  * @returns {object}
@@ -78,9 +95,22 @@ export async function renderScannedPageDataUrl(pageIndex, config, watermark, noi
   // fabric 的 multiplier 与截取范围都基于 canvas 当前显示尺寸与 zoom, 而两者随窗口宽度、
   // 用户缩放而浮动, 未访问过的页更是停留在 HTML 默认的 300x150。这里显式按原始基准尺寸
   // 截取整页并归一化倍率, 使输出恒为 originalWidth x config.scale, 与视图状态解耦。
-  const baseWidth = Number(fabricCanvas.originalWidth) || Number(fabricCanvas.width) || 0;
-  const baseHeight = Number(fabricCanvas.originalHeight) || Number(fabricCanvas.height) || 0;
-  const zoom = Number(fabricCanvas.getZoom && fabricCanvas.getZoom()) || 1;
+  // 本函数只读画布状态, 不调用 setZoom/setDimensions —— 导出不应改动用户正在浏览的视图。
+  //
+  // 前提: 应用只做滚动不做画布平移, viewportTransform 的平移项恒为 [0, 0], 故 left/top 取 0
+  // 即页面左上角。若将来新增画布平移(拖拽移动视口)功能, 这个前提被打破, 截取区域就会错位。
+  const baseWidth = toPositiveNumber(fabricCanvas.originalWidth, fabricCanvas.width);
+  const baseHeight = toPositiveNumber(fabricCanvas.originalHeight, fabricCanvas.height);
+  const rawZoom = typeof fabricCanvas.getZoom === 'function' ? fabricCanvas.getZoom() : 1;
+  // zoom 为 0/NaN/负数时回落到 1, 避免 multiplier 变成 Infinity/NaN 或截取宽高变成 0
+  const zoom = toPositiveNumber(rawZoom, 1);
+
+  const transform = fabricCanvas.viewportTransform;
+  if (Array.isArray(transform) && (transform[4] || transform[5])) {
+    console.warn(
+      '画布 viewportTransform 存在平移, 扫描导出按 left/top=0 截取的前提已被打破, 输出可能错位'
+    );
+  }
 
   const pageDataUrl =
     baseWidth > 0 && baseHeight > 0
@@ -133,7 +163,11 @@ export async function buildScannedPdfBytes({
   const total = pdfDoc.numPages;
 
   const noiseImage = await createNoiseImage(safeConfig.noise);
-  const outputDoc = await PDFDocument.create();
+  // pdf-lib 默认在文档创建时立即写入自己的 Producer/Creator 署名与本机当前时间的
+  // ModificationDate(CreationDate 视情况而定), 与是否调用 save() 无关。关闭
+  // updateMetadata 后这些字段完全不会被自动写入, 之后按需显式设置即可, 不必再靠置空
+  // 字符串中和署名, 也避免了 enabled:false 时仍泄漏本机时间的问题。
+  const outputDoc = await PDFDocument.create({ updateMetadata: false });
 
   // 记录未能渲染的页号, 结束时汇总告知用户, 不做静默降级
   const blankPages = [];
@@ -198,12 +232,9 @@ export async function buildScannedPdfBytes({
     const now = new Date();
     outputDoc.setCreationDate(now);
     outputDoc.setModificationDate(now);
-  } else {
-    // pdf-lib 保存时无条件写入自己的 Producer/Creator 署名。用户没要求写元数据时,
-    // 输出不应自报生成工具, 故置空 —— 中和署名而非伪装成任何设备。
-    outputDoc.setProducer('');
-    outputDoc.setCreator('');
   }
+  // enabled:false 时不写任何元数据字段: 上面的 updateMetadata:false 已确保
+  // Producer/Creator/CreationDate/ModificationDate 全部缺失, 无需再置空字符串中和。
 
   if (blankPages.length > 0) {
     window.Toast?.warning?.(

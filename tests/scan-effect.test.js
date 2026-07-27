@@ -368,6 +368,20 @@ export async function runScanEffectTests() {
       narrowImage.width === wideImage.width && narrowImage.height === wideImage.height,
       '同一文档不同显示尺寸的页, 导出分辨率必须一致'
     );
+    // 宽高各自达标仍可能被同时按错误比例缩放, 故额外锁定宽高比等于原始基准比例
+    const expectedAspect = BASE_H / BASE_W;
+    const narrowAspect = narrowImage.height / narrowImage.width;
+    const wideAspect = wideImage.height / wideImage.width;
+    assert(
+      results,
+      Math.abs(narrowAspect - expectedAspect) <= 0.01,
+      `窄画布输出宽高比应为 ${expectedAspect.toFixed(3)}, 实际 ${narrowAspect.toFixed(3)}`
+    );
+    assert(
+      results,
+      Math.abs(wideAspect - expectedAspect) <= 0.01,
+      `宽画布输出宽高比应为 ${expectedAspect.toFixed(3)}, 实际 ${wideAspect.toFixed(3)}`
+    );
 
     // scale 必须真实线性地改变输出分辨率
     const halfScaleImage = await loadImage(
