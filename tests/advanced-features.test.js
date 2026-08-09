@@ -64,6 +64,8 @@ export async function runAdvancedFeatureTests() {
   assert(results, JSON.stringify(resolveTemplatePages('1,3-4,last', 6)) === '[1,3,4,6]', '模板页码表达式应支持范围和末页');
   const safeTemplate = sanitizeStampTemplate({ anchor: 'bad', offsetX: 99999 });
   assert(results, safeTemplate.anchor === 'center' && safeTemplate.offsetX === 2000, '模板输入应清洗并限制范围');
+  const adjustedTemplate = sanitizeStampTemplate({ rotation: 270, brightness: -10, removeBackground: false });
+  assert(results, adjustedTemplate.rotation === 180 && adjustedTemplate.brightness === 0 && adjustedTemplate.removeBackground === false, 'Agent 模板应限制旋转、深浅并保留去背景选择');
   const placement = calculateStampPlacement({ pageWidth: 600, pageHeight: 800, stampWidth: 100, stampHeight: 50, template: { anchor: 'bottom-right' } });
   assert(results, placement.x === 476 && placement.y === 24, '右下锚点坐标应正确');
   const coverage = validateStraddleCoverage([{ page: 1, kind: 'straddle', group: 'g' }], 2, 'g');

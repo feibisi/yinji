@@ -3,6 +3,17 @@ import { buildZipBundle } from './zip-bundle.js';
 
 export const EVIDENCE_SCHEMA = 'yinji-evidence/v1';
 
+let cachedAppVersion = '';
+
+async function getAppVersion() {
+  if (cachedAppVersion) return cachedAppVersion;
+  try {
+    const response = await fetch(new URL('/version.json', window.location.href));
+    if (response.ok) cachedAppVersion = String((await response.json()).version || 'unknown');
+  } catch {}
+  return cachedAppVersion || 'unknown';
+}
+
 function toUint8Array(value) {
   if (value instanceof Uint8Array) return value;
   if (value instanceof ArrayBuffer) return new Uint8Array(value);
@@ -54,10 +65,11 @@ export async function createEvidenceManifest({
   settings = {},
   createdAt = new Date().toISOString(),
 } = {}) {
+  const appVersion = await getAppVersion();
   return {
     schema: EVIDENCE_SCHEMA,
     createdAt,
-    app: { name: 'Yinji', version: 'development' },
+    app: { name: 'Yinji', version: appVersion },
     mode: String(mode || 'visual-stamp'),
     source: {
       filename: sanitizeFilename(sourceFile?.name || 'document.pdf'),

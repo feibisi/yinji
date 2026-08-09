@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yinji.local/schemas/yinji-stamp-template-v1.schema.json",
+  "title": "Yinji semantic stamp template v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "yinji-stamp-template/v1" },
+    "pages": { "type": "string", "maxLength": 200 },
+    "anchor": { "enum": ["center", "top-left", "top-right", "bottom-left", "bottom-right"] },
+    "offsetX": { "type": "number", "minimum": -2000, "maximum": 2000 },
+    "offsetY": { "type": "number", "minimum": -2000, "maximum": 2000 },
+    "size": { "type": "number", "minimum": 0.05, "maximum": 1 },
+    "opacity": { "type": "number", "minimum": 0.05, "maximum": 1 },
+    "rotation": { "type": "number", "minimum": -180, "maximum": 180 },
+    "brightness": { "type": "number", "minimum": 0, "maximum": 200 },
+    "removeBackground": { "type": "boolean" }
+  }
+}

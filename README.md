@@ -19,6 +19,8 @@ python3 -m http.server 8123
 
 打开 `http://127.0.0.1:8123/index.html`。
 
+当前版本：`1.3.0-rc.1`。这是用于跨平台和 Agent 接入验收的候选版本，不是已完成公开发布授权的稳定版。
+
 ## 目录
 
 - `index.html`：页面入口
@@ -30,6 +32,8 @@ python3 -m http.server 8123
 - `src/style.css`：样式入口
 - `src/styles/`：样式拆分文件
 - `tools/ai/`：给 AI 或 CLI 用的自动化脚本
+- `schemas/`：Agent 任务、结果和语义盖章模板 JSON Schema
+- `agent-manifest.json`：MCP 与 JSON 任务入口的机器可读清单
 - `tools/signing/`：可选外部数字签名适配器
 - `docs/AGENT_API.md`：AI Agent 无界面操作协议
 - `docs/PRODUCT_BOUNDARIES.md`：产品与安全边界
@@ -107,6 +111,18 @@ node tools/ai/yinji-cli.mjs capture --pdf ./test-fixture.pdf --seal demo --add-s
 
 ## AI 协作
 
+支持两种不依赖界面坐标的接入方式：
+
+```bash
+# 标准 MCP stdio server
+node tools/ai/yinji-mcp-server.mjs
+
+# 任意 Agent 可生成的 JSON 任务
+node tools/ai/yinji-task.mjs --task ./task.json
+```
+
+可调整 `pages`、`anchor`、偏移、尺寸、透明度、旋转、深浅和自动去背景。操作前运行 `doctor` 与 `inspect`，完成后必须运行 `verify`。详细协议见 `docs/AGENT_API.md`。
+
 - 项目规则看 `AGENTS.md`
 - 任务流程和验证路径看 `docs/AI_RUNBOOK.md`
 - 用户操作看 `docs/USER_GUIDE.md`
@@ -124,4 +140,4 @@ node tools/ai/yinji-cli.mjs capture --pdf ./test-fixture.pdf --seal demo --add-s
 
 ## 许可证与第三方代码
 
-第三方库版本、哈希与许可证文本见 `THIRD_PARTY_NOTICES.md` 和 `licenses/`。印迹自身代码目前没有声明开源许可证；对外分发前需由仓库所有者决定授权条款。
+第三方库版本、哈希与许可证文本见 `THIRD_PARTY_NOTICES.md` 和 `licenses/`。印迹自身代码目前没有声明开源许可证；状态和发布门禁见 `LICENSE-STATUS.md`。候选包可以用于内部验收，公开或稳定发布仍须仓库所有者批准许可证。

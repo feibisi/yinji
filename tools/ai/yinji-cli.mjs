@@ -5,8 +5,13 @@ import process from 'node:process';
 import fs from 'node:fs';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 
 import { YinjiDriver } from './lib/yinji-driver.mjs';
+import { assertPreflight, inspectLocalFile } from './file-preflight.mjs';
+
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const VERSION_INFO = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'version.json'), 'utf8'));
 
 function printHelp() {
   console.log(`印迹 AI CLI
@@ -15,6 +20,7 @@ function printHelp() {
   node tools/ai/yinji-cli.mjs smoke --pdf ./test-fixture.pdf [--seal demo]
   node tools/ai/yinji-cli.mjs state --pdf ./test-fixture.pdf [--seal demo] [--export-mode normal|scan|batch]
   node tools/ai/yinji-cli.mjs scan-check
+  node tools/ai/yinji-cli.mjs inspect --input ./contract.pdf
   node tools/ai/yinji-cli.mjs stamp --pdf ./contract.pdf --seal ./seal.png --output-dir ./out [--template ./template.json]
   node tools/ai/yinji-cli.mjs scan --pdf ./contract.pdf --seal ./seal.png --output-dir ./out [--template ./template.json]
   node tools/ai/yinji-cli.mjs verify --manifest ./out/contract_盖章版.yinji.json [--input ./out/contract_盖章版.pdf]
@@ -48,6 +54,10 @@ function printHelp() {
   --sign-command 外部签名程序；也可使用 YINJI_SIGN_COMMAND
   --dry-run     只验证参数和打印执行计划
   --force       stamp、scan、sign 允许覆盖已存在的输出（sign 绝不允许覆盖输入）
+
+跨 Agent 接入:
+  node tools/ai/yinji-task.mjs --task ./task.json
+  node tools/ai/yinji-mcp-server.mjs
 
 scan-check 自带三页墨量差异化夹具, 校验扫描件导出的未访问页内容、页号映射、
 上下方向与三档元数据, 不需要 --pdf。失败时退出码为 1。
@@ -108,7 +118,9 @@ function parseArgs(argv) {
 
 function runExternalSigner(command, input, output) {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, [input, output], { stdio: 'inherit', shell: false });
+    const child = spawn(command, [input, output], { stdio: ['ignore', 'pipe', 'pipe'], shell: false });
+    child.stdout.on('data', (chunk) => process.stderr.write(chunk));
+    child.stderr.on('data', (chunk) => process.stderr.write(chunk));
     child.on('error', reject);
     child.on('exit', (code) => code === 0
       ? resolve()
@@ -148,14 +160,22 @@ async function main() {
     return;
   }
 
+  if (command === '--version' || command === 'version') {
+    console.log(JSON.stringify(agentResult({ ok: true, ...VERSION_INFO }), null, 2));
+    return;
+  }
+
   if (command === 'capabilities') {
     console.log(JSON.stringify(agentResult({
       ok: true,
-      commands: ['capabilities', 'doctor', 'stamp', 'scan', 'verify', 'sign', 'state', 'capture', 'smoke', 'scan-check'],
+      app: VERSION_INFO,
+      commands: ['capabilities', 'doctor', 'inspect', 'stamp', 'scan', 'verify', 'sign', 'state', 'capture', 'smoke', 'scan-check'],
       contracts: {
         template: 'yinji-stamp-template/v1',
         evidence: 'yinji-evidence/v1',
         result: 'yinji-agent-result/v1',
+        task: 'yinji-agent-task/v1',
+        mcp: '2025-11-25',
       },
       boundaries: {
         visualStampIsDigitalSignature: false,
@@ -168,30 +188,61 @@ async function main() {
   }
 
   if (command === 'doctor') {
-    const appUrl = options['app-url'] || 'http://127.0.0.1:8123/index.html';
-    const cdpUrl = (options['cdp-url'] || 'http://127.0.0.1:9222').replace(/\/$/, '');
+    const appUrl = options['app-url'] || process.env.YINJI_APP_URL || 'http://127.0.0.1:8123/index.html';
+    const cdpUrl = (options['cdp-url'] || process.env.YINJI_CDP_URL || 'http://127.0.0.1:9222').replace(/\/$/, '');
     const probe = async (url, validate) => {
       try {
         const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
         const body = await response.text();
-        return { ok: response.ok && validate(body), status: response.status };
+        const validation = validate(body);
+        return {
+          ok: response.ok && validation.ok,
+          status: response.status,
+          ...Object.fromEntries(Object.entries(validation).filter(([key]) => key !== 'ok')),
+        };
       } catch (error) {
         return { ok: false, error: error.message };
       }
     };
     const checks = {
-      app: await probe(appUrl, (body) => /id=["']app["']/.test(body) && body.includes('印迹')),
+      app: await probe(appUrl, (body) => ({ ok: /id=["']app["']/.test(body) && body.includes('印迹') })),
+      version: await probe(new URL('version.json', appUrl).href, (body) => {
+        try {
+          const value = JSON.parse(body);
+          return { ok: value.name === 'Yinji' && typeof value.version === 'string', value };
+        } catch {
+          return { ok: false };
+        }
+      }),
       cdp: await probe(`${cdpUrl}/json/version`, (body) => {
         try {
-          return Boolean(JSON.parse(body).webSocketDebuggerUrl);
+          const value = JSON.parse(body);
+          return { ok: Boolean(value.webSocketDebuggerUrl), browser: value.Browser || '', protocol: value['Protocol-Version'] || '' };
         } catch {
-          return false;
+          return { ok: false };
         }
       }),
     };
-    const ok = checks.app.ok && checks.cdp.ok;
+    const ok = checks.app.ok && checks.version.ok && checks.cdp.ok;
     console.log(JSON.stringify(agentResult({ ok, checks }), null, 2));
     if (!ok) process.exitCode = 1;
+    return;
+  }
+
+  if (command === 'inspect') {
+    const input = resolveOptionPath(options.input);
+    if (!input) throw new Error('inspect 需要 --input');
+    const inspection = inspectLocalFile(input, { expected: 'document' });
+    const payload = inspection.ok
+      ? agentResult({ ...inspection, operation: 'inspect' })
+      : agentResult({
+          ok: false,
+          operation: 'inspect',
+          error: { code: inspection.code || 'PREFLIGHT_FAILED', message: inspection.message || '文件预检失败' },
+          inspection,
+        });
+    console.log(JSON.stringify(payload, null, 2));
+    if (!inspection.ok) process.exitCode = 1;
     return;
   }
 
@@ -259,13 +310,13 @@ async function main() {
     const pdf = resolveOptionPath(options.pdf);
     const seal = resolveOptionPath(options.seal);
     if (!pdf || !seal) throw new Error(`${command} 需要 --pdf 和 --seal`);
-    if (!fs.existsSync(pdf)) throw new Error(`找不到 PDF：${pdf}`);
-    if (seal !== 'demo' && !fs.existsSync(seal)) throw new Error(`找不到印章图片：${seal}`);
+    const inputInspection = assertPreflight(pdf, { expected: 'document' });
+    const sealInspection = seal === 'demo' ? { ok: true, kind: 'demo' } : assertPreflight(seal, { expected: 'seal' });
     const outputDirectory = path.resolve(options['output-dir'] || './yinji-output');
     const template = options.template
       ? JSON.parse(fs.readFileSync(resolveOptionPath(options.template), 'utf8'))
       : { schema: 'yinji-stamp-template/v1', pages: 'all', anchor: 'center' };
-    stampPlan = { pdf, seal, outputDirectory, template, scan: command === 'scan' };
+    stampPlan = { pdf, seal, outputDirectory, template, scan: command === 'scan', inputInspection, sealInspection };
     if (options['dry-run']) {
       console.log(JSON.stringify(agentResult({ ok: true, dryRun: true, plan: stampPlan }), null, 2));
       return;
@@ -273,8 +324,8 @@ async function main() {
   }
 
   const driver = new YinjiDriver({
-    appUrl: options['app-url'],
-    cdpBaseUrl: options['cdp-url'],
+    appUrl: options['app-url'] || process.env.YINJI_APP_URL,
+    cdpBaseUrl: options['cdp-url'] || process.env.YINJI_CDP_URL,
     width: options.width ? Number(options.width) : undefined,
     height: options.height ? Number(options.height) : undefined,
   });
@@ -292,7 +343,11 @@ async function main() {
     if (command === 'stamp' || command === 'scan') {
       const { pdf, seal, outputDirectory, template, scan } = stampPlan;
       fs.mkdirSync(outputDirectory, { recursive: true });
+      // 先走与人工界面相同的 PDF.js 加载路径，统一执行 500 页上限、
+      // 解析完整性和加密文档拒绝，再进入批量导出路径。
+      await driver.loadPdf(pdf);
       await driver.enableArtifactCapture();
+      await driver.configureSealProcessing(template);
       if (seal === 'demo') await driver.loadDemoSeal(); else await driver.loadSeal(seal);
       await driver.switchTab('export');
       await driver.switchExportMode('batch');
@@ -381,7 +436,7 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(JSON.stringify(agentResult({
+  console.log(JSON.stringify(agentResult({
     ok: false,
     error: { code: error.code || 'YINJI_ERROR', message: error.message || String(error) },
   }), null, 2));

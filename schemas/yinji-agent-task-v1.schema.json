@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yinji.local/schemas/yinji-agent-task-v1.schema.json",
+  "title": "Yinji Agent Task v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "operation"],
+  "properties": {
+    "schema": { "const": "yinji-agent-task/v1" },
+    "operation": { "enum": ["capabilities", "doctor", "inspect", "stamp", "scan", "verify", "sign"] },
+    "input": { "type": "string" },
+    "seal": { "type": "string" },
+    "outputDirectory": { "type": "string" },
+    "output": { "type": "string" },
+    "manifest": { "type": "string" },
+    "template": { "$ref": "yinji-stamp-template-v1.schema.json" },
+    "signCommand": { "type": "string" },
+    "appUrl": { "type": "string" },
+    "cdpUrl": { "type": "string" },
+    "force": { "type": "boolean", "default": false },
+    "dryRun": { "type": "boolean", "default": false }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "operation": { "enum": ["inspect", "stamp", "scan", "sign"] } }, "required": ["operation"] },
+      "then": { "required": ["input"] }
+    },
+    {
+      "if": { "properties": { "operation": { "enum": ["stamp", "scan"] } }, "required": ["operation"] },
+      "then": { "required": ["seal", "outputDirectory"] }
+    },
+    {
+      "if": { "properties": { "operation": { "const": "verify" } }, "required": ["operation"] },
+      "then": { "required": ["manifest"] }
+    },
+    {
+      "if": { "properties": { "operation": { "const": "sign" } }, "required": ["operation"] },
+      "then": { "required": ["output", "signCommand"] }
+    }
+  ]
+}

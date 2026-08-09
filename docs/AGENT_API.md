@@ -2,18 +2,61 @@
 
 ## 目标
 
-AI Agent 应通过 `tools/ai/yinji-cli.mjs` 操作 Yinji，而不是依赖坐标点击。所有面向 Agent 的成功和失败结果均使用 JSON；失败退出码为非零。
+AI Agent 应通过 MCP、JSON 任务或 `tools/ai/yinji-cli.mjs` 操作 Yinji，而不是依赖坐标点击。所有面向 Agent 的成功和失败结果均使用 JSON；失败退出码为非零。
 
 结果 schema：`yinji-agent-result/v1`。
+
+## MCP 接入（推荐）
+
+MCP 客户端使用 stdio 启动：
+
+```json
+{
+  "command": "node",
+  "args": ["/absolute/path/to/yinji/tools/ai/yinji-mcp-server.mjs"],
+  "cwd": "/absolute/path/to/yinji"
+}
+```
+
+工具：`yinji_capabilities`、`yinji_doctor`、`yinji_inspect`、`yinji_stamp`、`yinji_scan`、`yinji_verify`。MCP 只暴露视觉签章，不暴露外部证书签名器。
+
+## 通用 JSON 任务
+
+不支持 MCP 的 Agent 写入 `yinji-agent-task/v1`：
+
+```json
+{
+  "schema": "yinji-agent-task/v1",
+  "operation": "stamp",
+  "input": "./contract.pdf",
+  "seal": "./seal.png",
+  "outputDirectory": "./out/task-001",
+  "template": {
+    "schema": "yinji-stamp-template/v1",
+    "pages": "1,last",
+    "anchor": "bottom-right",
+    "offsetX": -16,
+    "offsetY": 20,
+    "size": 0.18,
+    "opacity": 0.82,
+    "rotation": -3,
+    "brightness": 75,
+    "removeBackground": true
+  }
+}
+```
+
+执行：`node tools/ai/yinji-task.mjs --task ./task.json`。相对文件路径以任务文件所在目录解析。JSON Schema 位于 `schemas/`，便携 Agent 指令位于 `integrations/agents/SKILL.md`。
 
 ## 前置检查
 
 ```bash
 node tools/ai/yinji-cli.mjs capabilities
 node tools/ai/yinji-cli.mjs doctor
+node tools/ai/yinji-cli.mjs inspect --input ./contract.pdf
 ```
 
-`doctor` 同时检查静态页面和 Chrome CDP。任一失败时不得开始写产物。
+`doctor` 同时检查静态页面、`version.json` 和 Chrome CDP。`inspect` 会拒绝加密、损坏、非 PDF 或超过 50 MB 的输入。任一失败时不得开始写产物。
 
 ## 盖章与扫描件
 
@@ -37,6 +80,8 @@ node tools/ai/yinji-cli.mjs verify \
 `verify` 对文件名、大小和 SHA-256 三项做确定性检查；任一不符退出码为 1。
 
 默认不覆盖已有产物。只有编排器已核对目标目录并明确接受覆盖时才能传 `--force`；正式任务应优先使用新的隔离输出目录。
+
+语义模板支持页码、五个锚点、偏移、尺寸、透明度、旋转、深浅和自动去背景。Agent 应调整模板并重新生成，不应通过屏幕像素坐标拖拽。
 
 ## 数字签名
 

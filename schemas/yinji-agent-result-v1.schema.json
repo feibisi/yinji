@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yinji.local/schemas/yinji-agent-result-v1.schema.json",
+  "title": "Yinji Agent Result v1",
+  "type": "object",
+  "required": ["schema", "ok"],
+  "properties": {
+    "schema": { "const": "yinji-agent-result/v1" },
+    "ok": { "type": "boolean" },
+    "operation": { "type": "string" },
+    "error": {
+      "type": "object",
+      "required": ["code", "message"],
+      "properties": { "code": { "type": "string" }, "message": { "type": "string" } }
+    }
+  }
+}

@@ -295,21 +295,35 @@ export class YinjiDriver {
   }
 
   async loadPdf(filePath) {
+    await this.evaluate(`(() => {
+      document.querySelectorAll('#toast-container .toast-message').forEach((item) => item.closest('.toast')?.remove?.() || item.remove());
+      return true;
+    })()`);
     await this.setInputFiles('#pdfInput', [filePath]);
-    await this.waitFor(
+    const outcome = await this.waitFor(
       `(() => {
         const state = window.AppState?.getState?.();
-        return Boolean(
+        const loading = document.getElementById('loading-overlay')?.classList.contains('loading-show');
+        if (
+          !loading &&
           state &&
           state.currentPdfFile &&
           state.currentSourceKind &&
           state.totalPages > 0 &&
           !document.getElementById('app')?.classList.contains('no-pdf-loaded')
-        );
+        ) return { ok: true, totalPages: state.totalPages };
+        const toast = Array.from(document.querySelectorAll('#toast-container .toast-message')).at(-1)?.textContent?.trim() || '';
+        return !loading && toast ? { ok: false, message: toast } : false;
       })()`,
       '文件加载超时',
       35000
     );
+    if (!outcome.ok) {
+      const error = new Error(outcome.message || '文件打开失败');
+      error.code = 'PDF_BROWSER_PREFLIGHT_FAILED';
+      throw error;
+    }
+    return outcome;
   }
 
   async loadSeal(filePath) {
@@ -400,6 +414,25 @@ export class YinjiDriver {
       window.__yinjiCliCapture = true;
       window.__yinjiCapturedArtifacts = [];
       return true;
+    })()`);
+  }
+
+  async configureSealProcessing(template = {}) {
+    await this.evaluate(`(() => {
+      const template = ${asJson(template)};
+      const patch = {};
+      if (Number.isFinite(Number(template.rotation))) patch.sealRotation = Math.min(180, Math.max(-180, Number(template.rotation)));
+      if (Number.isFinite(Number(template.brightness))) patch.sealBrightness = Math.min(200, Math.max(0, Number(template.brightness)));
+      if (typeof template.removeBackground === 'boolean') patch.autoRemoveSealBackground = template.removeBackground;
+      window.AppState?.setState?.(patch);
+      window.__yinjiAgentTemplateOverrides = {
+        ...(Number.isFinite(Number(template.rotation)) ? { rotation: patch.sealRotation } : {}),
+        ...(Number.isFinite(Number(template.brightness)) ? { brightness: patch.sealBrightness } : {}),
+        ...(typeof template.removeBackground === 'boolean' ? { removeBackground: template.removeBackground } : {}),
+      };
+      const checkbox = document.getElementById('auto-remove-bg');
+      if (checkbox && typeof template.removeBackground === 'boolean') checkbox.checked = template.removeBackground;
+      return { patch, overrides: window.__yinjiAgentTemplateOverrides };
     })()`);
   }
 

@@ -40,6 +40,9 @@ ossutil cp -r -f src/ "$BUCKET/src/" --meta "$APP_HEADER" $DRY_RUN
 echo "==> 同步 public/ 到 $BUCKET/public/"
 ossutil cp -r -f public/ "$BUCKET/public/" --meta "$APP_HEADER" $DRY_RUN
 
+echo "==> 同步 version.json (不缓存) 到 $BUCKET/"
+ossutil cp -f version.json "$BUCKET/version.json" --meta "$APP_HEADER" $DRY_RUN
+
 echo "==> 同步 index.html (不缓存, 入口最后传保证一致性) 到 $BUCKET/"
 ossutil cp -f index.html "$BUCKET/index.html" --meta "$APP_HEADER" $DRY_RUN
 

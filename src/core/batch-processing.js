@@ -231,18 +231,21 @@ async function processSingleBatchFile(fileItem, options = {}) {
   const { PDFDocument, degrees } = window.PDFLib;
   const pdfDoc = await PDFDocument.load(pdfBytes);
   const pages = pdfDoc.getPages();
+  const state = getState();
   const {
     sealImageElement: sealImage,
     sealRotation = 0,
     sealBrightness = 100,
-  } = getState();
+  } = state;
   const settings = window.Settings.getSettings();
   const template = sanitizeStampTemplate(options.template || readTemplateControls());
   const { getRotatedCroppedImage } = await import('../modules/stamp-manager.js');
+  const effectiveRotation = template.rotation ?? sealRotation;
+  const effectiveBrightness = template.brightness ?? sealBrightness;
   const rotatedSealUrl = getRotatedCroppedImage(
     sealImage,
-    sealRotation,
-    sealBrightness
+    effectiveRotation,
+    effectiveBrightness
   );
   const pngImageBytes = dataUrlToUint8Array(rotatedSealUrl);
   const pngImage = await pdfDoc.embedPng(pngImageBytes);
@@ -285,7 +288,9 @@ async function processSingleBatchFile(fileItem, options = {}) {
       width: Number(sealWidth.toFixed(2)),
       height: Number(sealHeight.toFixed(2)),
       opacity: template.opacity ?? settings.sealOpacity,
-      brightness: sealBrightness,
+      brightness: effectiveBrightness,
+      rotation: effectiveRotation,
+      removeBackground: template.removeBackground ?? state.autoRemoveSealBackground ?? true,
     });
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
@@ -330,6 +335,7 @@ function readTemplateControls() {
     offsetY: document.getElementById('batch-template-offset-y')?.value || 0,
     size: percentageOrNull('batch-template-size'),
     opacity: percentageOrNull('batch-template-opacity'),
+    ...(globalThis.__yinjiAgentTemplateOverrides || {}),
   });
 }
 

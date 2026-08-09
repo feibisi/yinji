@@ -19,6 +19,7 @@
 
 ```
 index.html
+version.json
 src/          (全部 .js / .css)
 vendor/       (fabric / pdf.js / pdf-lib / lucide)
 public/       (favicon / 图标)

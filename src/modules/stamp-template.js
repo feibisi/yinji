@@ -8,6 +8,9 @@ export const DEFAULT_STAMP_TEMPLATE = Object.freeze({
   offsetY: 0,
   size: null,
   opacity: null,
+  rotation: null,
+  brightness: null,
+  removeBackground: null,
 });
 
 const ANCHORS = new Set([
@@ -37,6 +40,9 @@ export function sanitizeStampTemplate(raw = {}) {
     offsetY: finiteOr(source.offsetY, 0, -2000, 2000),
     size: source.size == null ? null : finiteOr(source.size, null, 0.05, 1),
     opacity: source.opacity == null ? null : finiteOr(source.opacity, null, 0.05, 1),
+    rotation: source.rotation == null ? null : finiteOr(source.rotation, null, -180, 180),
+    brightness: source.brightness == null ? null : finiteOr(source.brightness, null, 0, 200),
+    removeBackground: typeof source.removeBackground === 'boolean' ? source.removeBackground : null,
   };
 }
 

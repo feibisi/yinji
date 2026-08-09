@@ -21,6 +21,10 @@
    node tools/ai/yinji-cli.mjs state --seal demo --tab export --batch-pdf ./test-fixture.pdf --process-batch-scan
    node tools/ai/yinji-cli.mjs state --pdf ./test-fixture.pdf --tab export --export-mode scan
    node tools/ai/yinji-cli.mjs scan-check
+   node tools/ai/yinji-cli.mjs inspect --input ./test-fixture.pdf
+   node tools/tests/agent-contract.test.mjs
+   node tools/tests/mcp-smoke.mjs
+   node tools/tests/compatibility-check.mjs
    node tools/ai/yinji-cli.mjs stamp --pdf ./test-multi.pdf --seal demo --output-dir /tmp/yinji-output
    node tools/ai/yinji-cli.mjs scan --pdf ./test-multi.pdf --seal demo --output-dir /tmp/yinji-output
    node tools/ai/yinji-cli.mjs verify --manifest /tmp/yinji-output/test-multi_盖章版.yinji.json
@@ -166,3 +170,5 @@
 5. 涉及扫描件时，跑 `node tools/ai/yinji-cli.mjs scan-check`
 6. 浏览器单元测试打开 `http://127.0.0.1:8123/tests/index.html`，失败数必须为 0
 7. 涉及证据记录时，用系统 `sha256sum` 或 Python `hashlib.sha256` 重算结果文件并对照侧车
+8. 涉及 Agent 协议时，必须跑 contract、MCP smoke 和一个 JSON task；不能只验证 CLI
+9. 候选发布运行两次 `tools/release/build-release.py` 并比较 ZIP SHA-256

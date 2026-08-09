@@ -1,5 +1,11 @@
 # 印迹用户指南
 
+## 让自己的 AI Agent 使用
+
+Yinji 提供 MCP 和 JSON 任务两种入口。Agent 不需要识别按钮坐标，可以直接用“末页、右下角、缩小到 18%、透明度 82%、深浅 75、去白底”这类结构化参数处理文件。
+
+接入前把仓库绝对路径和 `agent-manifest.json` 提供给 Agent；支持 MCP 的客户端启动 `tools/ai/yinji-mcp-server.mjs`，其他客户端使用 `tools/ai/yinji-task.mjs --task <task.json>`。每次仍需由用户确认使用哪个印章及其权限，Agent 完成后必须校验证据记录。
+
 ## 1. 打开与盖章
 
 1. 在“文件”区选择 PDF、PNG 或 JPG。

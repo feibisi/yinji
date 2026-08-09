@@ -55,6 +55,8 @@ CLI 通过 CDP 驱动本机页面，产出 PDF 和证据侧车。`--dry-run` 不
 
 Agent 的 capabilities、doctor、scan、verify 和结构化错误协议见 `docs/AGENT_API.md`。
 
+跨 Agent 接口由 `agent-manifest.json` 描述；任务、结果和模板的 JSON Schema 位于 `schemas/`。MCP stdio 入口是 `tools/ai/yinji-mcp-server.mjs`，无 MCP 环境使用 `tools/ai/yinji-task.mjs`。输入预检由 `tools/ai/file-preflight.mjs` 统一执行，CLI、JSON 任务和 MCP 不应各自复制判断。
+
 外部签名契约：
 
 ```text

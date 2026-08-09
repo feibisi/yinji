@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased] - 2026-08-09
 
 ### Added
+- MCP 2025-11-25 stdio server、`yinji-agent-task/v1` JSON 任务入口和便携 Agent skill
+- `inspect` 输入预检，拒绝加密、损坏、超限 PDF 和伪造印章格式
+- Agent 模板支持旋转、深浅和自动去背景
+- `version.json`、确定性候选包、发布 manifest、CycloneDX SBOM 和兼容性报告
 - 边缘连通白底清除，上传印章时可自动处理并保留原始素材
 - 导出 PDF 的 `yinji-evidence/v1` SHA-256 证据记录
 - `yinji-stamp-template/v1` 批量页码、位置、偏移、尺寸和透明度模板
