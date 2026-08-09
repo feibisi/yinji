@@ -316,4 +316,6 @@ export function cleanupCanvas(pageNum) {
       console.warn(`清理画布 ${pageNum} 时出错:`, error);
     }
   }
+
+  setFabricCanvasAt(pageNum - 1, null);
 }

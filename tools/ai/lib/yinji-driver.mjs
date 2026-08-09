@@ -67,6 +67,9 @@ const SCAN_CHECK_EXPORT_SCRIPT = `(async () => {
     watermark: scanWatermark.DEFAULT_WATERMARK,
     metadata: { enabled: false },
   });
+  const after = (window.AppState.getState().fabricCanvases || []).map(
+    (item) => Boolean(item)
+  );
 
   const pdf = await window.pdfjsLib.getDocument({ data: bytes.slice() }).promise;
   const pages = [];
@@ -110,7 +113,19 @@ const SCAN_CHECK_EXPORT_SCRIPT = `(async () => {
     });
   }
 
-  return { before, byteLength: bytes.length, pageCount: pdf.numPages, pages };
+  return { before, after, byteLength: bytes.length, pageCount: pdf.numPages, pages };
+})()`;
+
+const SCAN_CHECK_CANCEL_SCRIPT = `(async () => {
+  const scanExport = await import('/src/modules/scan-export.js');
+  const controller = new AbortController();
+  controller.abort();
+  try {
+    await scanExport.buildScannedPdfBytes({ signal: controller.signal });
+    return { cancelled: false, name: '' };
+  } catch (error) {
+    return { cancelled: error?.name === 'AbortError', name: error?.name || '' };
+  }
 })()`;
 
 // 三档元数据(关闭 / 开启但不写处理软件 / 开启并写真实处理软件)。元数据与画质无关, 这里降到
@@ -127,7 +142,12 @@ const SCAN_CHECK_METADATA_SCRIPT = `(async () => {
     { name: 'disabled', metadata: { enabled: false } },
     {
       name: 'enabled-plain',
-      metadata: { enabled: true, title: '扫描件校验', author: '印迹' },
+      metadata: {
+        enabled: true,
+        title: '扫描件校验',
+        author: '印迹',
+        includeProcessor: false,
+      },
     },
     {
       name: 'enabled-processor',
@@ -724,7 +744,7 @@ export class YinjiDriver {
     await this.loadScanCheckFixture();
 
     const result = await this.evaluate(SCAN_CHECK_EXPORT_SCRIPT);
-    const { before = [], pageCount, pages = [] } = result;
+    const { before = [], after = [], pageCount, pages = [] } = result;
 
     record(
       'fixture-pages',
@@ -738,6 +758,12 @@ export class YinjiDriver {
       'pages-unvisited',
       unvisited,
       `导出前画布状态 [${before.map((item) => (item ? 'canvas' : 'null')).join(', ')}]，期望第 2、3 页为 null`
+    );
+
+    record(
+      'temporary-canvases-released',
+      after[0] === true && after[1] === false && after[2] === false,
+      `导出后画布状态 [${after.map((item) => (item ? 'canvas' : 'null')).join(', ')}]，期望只保留用户已访问的第 1 页`
     );
 
     pages.forEach((page) => {
@@ -813,12 +839,20 @@ export class YinjiDriver {
       );
     }
 
+    const cancellation = await this.evaluate(SCAN_CHECK_CANCEL_SCRIPT);
+    record(
+      'scan-export-cancellable',
+      cancellation.cancelled === true,
+      `预先取消的导出应抛出 AbortError，实际 ${cancellation.name || '未抛错'}`
+    );
+
     const failures = checks.filter((item) => !item.ok);
 
     return {
       ok: failures.length === 0,
       pages,
       canvasesBeforeExport: before.map((item) => (item ? 'canvas' : 'null')),
+      canvasesAfterExport: after.map((item) => (item ? 'canvas' : 'null')),
       metadata,
       checks,
       failures: failures.map((item) => `${item.check}: ${item.detail}`),

@@ -7,7 +7,10 @@ import { getState } from '../core/state.js';
 import { generateSafeExportFilename } from '../utils/security.js';
 import { dataUrlToUint8Array } from '../utils/data-url.js';
 import { parseBoolean } from '../utils/parse-boolean.js';
-import { initializeFabricCanvasForPage } from './canvas-manager.js';
+import {
+  cleanupCanvas,
+  initializeFabricCanvasForPage,
+} from './canvas-manager.js';
 import {
   applyScanEffect,
   createNoiseImage,
@@ -77,6 +80,18 @@ export function sanitizeScanMetadata(raw) {
   return metadata;
 }
 
+function createAbortError() {
+  const error = new Error('扫描件导出已取消');
+  error.name = 'AbortError';
+  return error;
+}
+
+function throwIfAborted(signal) {
+  if (signal?.aborted) {
+    throw createAbortError();
+  }
+}
+
 /**
  * 渲染单页扫描效果, 返回 dataURL。预览与导出共用同一路径以保证所见即所得。
  * @param {number} pageIndex 0 起
@@ -139,7 +154,11 @@ export async function renderScannedPageDataUrl(pageIndex, config, watermark, noi
   applyWatermark(target, safeWatermark);
 
   const quality = safeConfig.output_format === 'image/jpeg' ? JPEG_QUALITY : undefined;
-  return target.toDataURL(safeConfig.output_format, quality);
+  const result = target.toDataURL(safeConfig.output_format, quality);
+  source.src = '';
+  target.width = 0;
+  target.height = 0;
+  return result;
 }
 
 /**
@@ -152,6 +171,7 @@ export async function buildScannedPdfBytes({
   watermark,
   metadata,
   onProgress = () => {},
+  signal = null,
 } = {}) {
   const { originalPdfBytes, pdfDoc } = getState();
   if (!originalPdfBytes || !pdfDoc) {
@@ -176,6 +196,7 @@ export async function buildScannedPdfBytes({
   const blankPages = [];
 
   for (let i = 0; i < total; i++) {
+    throwIfAborted(signal);
     const pageNum = i + 1;
     onProgress(pageNum, total);
 
@@ -185,7 +206,8 @@ export async function buildScannedPdfBytes({
     const { width, height } = sourcePage.getViewport({ scale: 1 });
 
     // 画布只在用户翻页时才初始化, 未访问过的页若直接跳过会静默输出纯白页(内容丢失)
-    if (!getState().fabricCanvases[i]) {
+    const hadCanvasBeforeExport = Boolean(getState().fabricCanvases[i]);
+    if (!hadCanvasBeforeExport) {
       try {
         await initializeFabricCanvasForPage(pageNum);
       } catch (error) {
@@ -193,32 +215,42 @@ export async function buildScannedPdfBytes({
       }
     }
 
-    const scannedDataUrl = await renderScannedPageDataUrl(
-      i,
-      safeConfig,
-      safeWatermark,
-      noiseImage
-    );
+    try {
+      throwIfAborted(signal);
+      const scannedDataUrl = await renderScannedPageDataUrl(
+        i,
+        safeConfig,
+        safeWatermark,
+        noiseImage
+      );
 
-    const page = outputDoc.addPage([width, height]);
+      const page = outputDoc.addPage([width, height]);
 
-    if (!scannedDataUrl) {
-      // 初始化后仍拿不到画布: 保留空白页维持页数一致, 但必须留痕
-      console.warn(`第 ${pageNum} 页画布不可用, 已输出为空白页`);
-      blankPages.push(pageNum);
-      continue;
+      if (!scannedDataUrl) {
+        // 初始化后仍拿不到画布: 保留空白页维持页数一致, 但必须留痕
+        console.warn(`第 ${pageNum} 页画布不可用, 已输出为空白页`);
+        blankPages.push(pageNum);
+        continue;
+      }
+
+      throwIfAborted(signal);
+      const imageBytes = dataUrlToUint8Array(scannedDataUrl);
+      const embedded =
+        safeConfig.output_format === 'image/jpeg'
+          ? await outputDoc.embedJpg(imageBytes)
+          : await outputDoc.embedPng(imageBytes);
+
+      page.drawImage(embedded, { x: 0, y: 0, width, height });
+
+      // 让出主线程, 避免长文档卡死 UI，并给取消操作一个检查点。
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      throwIfAborted(signal);
+    } finally {
+      // 未访问页只为本次导出临时初始化，导出后立即释放，避免长文档把所有页常驻内存。
+      if (!hadCanvasBeforeExport && getState().fabricCanvases[i]) {
+        cleanupCanvas(pageNum);
+      }
     }
-
-    const imageBytes = dataUrlToUint8Array(scannedDataUrl);
-    const embedded =
-      safeConfig.output_format === 'image/jpeg'
-        ? await outputDoc.embedJpg(imageBytes)
-        : await outputDoc.embedPng(imageBytes);
-
-    page.drawImage(embedded, { x: 0, y: 0, width, height });
-
-    // 让出主线程, 避免长文档卡死 UI
-    await new Promise((resolve) => setTimeout(resolve, 0));
   }
 
   if (safeMetadata.enabled) {
@@ -264,13 +296,18 @@ export async function exportScannedPdf({
     return;
   }
 
-  window.Loading.showExportLoading('正在生成扫描件...');
+  const abortController = new AbortController();
+  window.Loading.showExportLoading('正在生成扫描件...', {
+    cancelable: true,
+    onCancel: () => abortController.abort(),
+  });
 
   try {
     const pdfBytes = await buildScannedPdfBytes({
       config,
       watermark,
       metadata,
+      signal: abortController.signal,
       onProgress: (current, total) => {
         window.Loading.updateProgress(
           (current / total) * 90,
@@ -297,6 +334,10 @@ export async function exportScannedPdf({
 
     window.Toast.success(`已开始下载：${safeFilename}`);
   } catch (error) {
+    if (error?.name === 'AbortError') {
+      window.Toast.info('已取消扫描件导出。');
+      return;
+    }
     console.error('导出扫描件失败:', error);
     window.Toast.error('导出扫描件失败，详情请查看控制台。', 0);
   } finally {

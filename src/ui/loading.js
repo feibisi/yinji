@@ -8,6 +8,8 @@
 let loadingOverlay = null;
 let progressBar = null;
 let progressText = null;
+let cancelButton = null;
+let cancelHandler = null;
 
 /**
  * Initialize loading overlay (called once on page load)
@@ -26,12 +28,28 @@ function initLoadingOverlay() {
         <div class="loading-progress-bar"></div>
       </div>
       <div class="loading-progress-text"></div>
+      <button type="button" class="btn btn-secondary loading-cancel-btn" hidden>取消</button>
     </div>
   `;
   document.body.appendChild(loadingOverlay);
 
   progressBar = loadingOverlay.querySelector('.loading-progress-bar');
   progressText = loadingOverlay.querySelector('.loading-progress-text');
+  cancelButton = loadingOverlay.querySelector('.loading-cancel-btn');
+  cancelButton.addEventListener('click', () => {
+    if (!cancelHandler || cancelButton.disabled) return;
+    cancelButton.disabled = true;
+    cancelButton.textContent = '正在取消…';
+    cancelHandler();
+  });
+}
+
+function configureCancel({ cancelable = false, onCancel = null } = {}) {
+  if (!cancelButton) return;
+  cancelHandler = cancelable && typeof onCancel === 'function' ? onCancel : null;
+  cancelButton.hidden = !cancelHandler;
+  cancelButton.disabled = false;
+  cancelButton.textContent = '取消';
 }
 
 // ==================== Loading Functions ====================
@@ -41,7 +59,7 @@ function initLoadingOverlay() {
  * @param {string} message - Loading message to display
  * @param {boolean} showProgress - Whether to show progress bar
  */
-function showLoading(message = '加载中...', showProgress = false) {
+function showLoading(message = '加载中...', showProgress = false, options = {}) {
   initLoadingOverlay();
 
   const textEl = loadingOverlay.querySelector('.loading-text');
@@ -50,6 +68,7 @@ function showLoading(message = '加载中...', showProgress = false) {
   textEl.textContent = message;
   progressContainer.style.display = showProgress ? 'block' : 'none';
   progressText.style.display = showProgress ? 'block' : 'none';
+  configureCancel(options);
 
   if (showProgress) {
     updateProgress(0);
@@ -64,6 +83,7 @@ function showLoading(message = '加载中...', showProgress = false) {
 function hideLoading() {
   if (!loadingOverlay) return;
   loadingOverlay.classList.remove('loading-show');
+  configureCancel();
 }
 
 /**
@@ -98,8 +118,8 @@ function showPdfLoading(message = '正在加载文件...') {
  * Show loading for export operations with progress
  * @param {string} message - Loading message
  */
-function showExportLoading(message = '正在导出 PDF...') {
-  showLoading(message, true);
+function showExportLoading(message = '正在导出 PDF...', options = {}) {
+  showLoading(message, true, options);
 }
 
 /**

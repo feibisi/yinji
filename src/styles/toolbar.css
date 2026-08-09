@@ -1244,6 +1244,11 @@
   margin-top: 0.25rem;
 }
 
+.loading-cancel-btn {
+  margin-top: 1rem;
+  min-width: 7rem;
+}
+
 @keyframes yinji-loading-spin {
   from {
     transform: rotate(0deg);
