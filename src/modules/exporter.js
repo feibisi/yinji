@@ -1,6 +1,11 @@
 import { getState } from '../core/state.js';
 import { generateSafeExportFilename } from '../utils/security.js';
 import { dataUrlToUint8Array } from '../utils/data-url.js';
+import {
+  collectStampOperations,
+  downloadExportArtifacts,
+} from './evidence-manifest.js';
+import { findIncompleteStraddleGroups } from './stamp-template.js';
 
 /**
  * PDF 导出模块
@@ -85,6 +90,11 @@ export async function exportPDF(pdfFile) {
   window.Loading.showExportLoading('正在导出 PDF...');
 
   try {
+    const operations = collectStampOperations(getState().fabricCanvases);
+    const incomplete = findIncompleteStraddleGroups(operations, getState().totalPages);
+    if (incomplete.length > 0) {
+      throw new Error(`骑缝章未覆盖全部页面：缺第 ${incomplete[0].missingPages.join('、')} 页`);
+    }
     const pdfBytes = await buildStampedPdfBytes({
       onProgress: (current, total) => {
         const progress = (current / total) * 80;
@@ -96,24 +106,25 @@ export async function exportPDF(pdfFile) {
     });
 
     window.Loading.updateProgress(90, '正在保存文件...');
-    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-
     const safeFilename = generateSafeExportFilename(sourcePdfFile, '_盖章版');
-    link.download = safeFilename;
 
     window.Loading.updateProgress(100, '完成！');
-    link.click();
-    // 延迟撤销：部分浏览器在下载真正开始前撤销会导致下载失败/空文件
-    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    await downloadExportArtifacts({
+      sourceFile: sourcePdfFile,
+      sourceBytes: getState().originalSourceBytes || getState().originalPdfBytes,
+      outputBytes: pdfBytes,
+      outputFilename: safeFilename,
+      mode: 'visual-stamp',
+      pageCount: getState().totalPages,
+      operations,
+    });
 
     window.Loading.hide();
-    window.Toast.success(`已开始下载：${safeFilename}`);
+    window.Toast.success(`已开始下载 PDF 和证据记录：${safeFilename}`);
   } catch (error) {
     console.error('导出 PDF 时发生错误:', error);
     window.Loading.hide();
-    window.Toast.error('导出失败，详情请查看控制台。', 0);
+    window.Toast.error(error?.message || '导出失败，详情请查看控制台。', 0);
   }
 }
 
@@ -165,19 +176,23 @@ export async function exportCurrentPageAsImage(sourceFile) {
       throw new Error('PNG 导出失败');
     }
 
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
     const safeFilename = generateSafeExportFilename(
       sourceFile || getState().currentPdfFile,
       '_盖章版',
       'png'
     );
-    link.download = safeFilename;
-
     window.Loading.updateProgress(100, '完成！');
-    link.click();
-    // 延迟撤销：部分浏览器在下载真正开始前撤销会导致下载失败/空文件
-    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    const pngBytes = new Uint8Array(await blob.arrayBuffer());
+    await downloadExportArtifacts({
+      sourceFile: sourceFile || getState().currentPdfFile,
+      sourceBytes: getState().originalSourceBytes || getState().originalPdfBytes,
+      outputBytes: pngBytes,
+      outputFilename: safeFilename,
+      outputMime: 'image/png',
+      mode: 'image-visual-stamp',
+      pageCount: 1,
+      operations: collectStampOperations(getState().fabricCanvases),
+    });
 
     try {
       await pdfDoc.destroy?.();
@@ -186,7 +201,7 @@ export async function exportCurrentPageAsImage(sourceFile) {
     }
 
     window.Loading.hide();
-    window.Toast.success(`已开始下载：${safeFilename}`);
+    window.Toast.success(`已开始下载图片和证据记录：${safeFilename}`);
   } catch (error) {
     console.error('导出 PNG 时发生错误:', error);
     window.Loading.hide();

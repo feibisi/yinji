@@ -22,6 +22,18 @@ const SETTINGS_TYPES = Object.freeze(
   )
 );
 
+const SETTINGS_NUMBER_RANGES = Object.freeze({
+  sealSize: [0.05, 1],
+  sealRotation: [-180, 180],
+  sealOpacity: [0.05, 1],
+});
+
+function normalizeNumberSetting(key, value) {
+  const range = SETTINGS_NUMBER_RANGES[key];
+  if (!range) return value;
+  return Math.min(range[1], Math.max(range[0], value));
+}
+
 // ==================== Validation Functions ====================
 
 /**
@@ -55,7 +67,7 @@ function sanitizeSettings(rawSettings) {
 
     if (expectedType === 'number') {
       if (typeof value === 'number' && Number.isFinite(value)) {
-        sanitizedSettings[key] = value;
+        sanitizedSettings[key] = normalizeNumberSetting(key, value);
       }
       return;
     }
@@ -99,7 +111,7 @@ function validateImportedSettings(rawSettings) {
       if (typeof value !== 'number' || !Number.isFinite(value)) {
         throw new Error(`设置项 ${key} 类型无效`);
       }
-      validatedSettings[key] = value;
+      validatedSettings[key] = normalizeNumberSetting(key, value);
       return;
     }
 

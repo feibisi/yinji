@@ -384,6 +384,61 @@ export class YinjiDriver {
     return this.snapshotState();
   }
 
+  async configureDownloads(outputDirectory) {
+    const options = {
+      behavior: 'allow',
+      downloadPath: path.resolve(outputDirectory),
+    };
+    // Page.setDownloadBehavior applies to the target session used by this
+    // lightweight CDP client. Browser.setDownloadBehavior can silently apply
+    // to a different browser context when several headless contexts coexist.
+    await this.client.send('Page.setDownloadBehavior', options);
+  }
+
+  async enableArtifactCapture() {
+    await this.evaluate(`(() => {
+      window.__yinjiCliCapture = true;
+      window.__yinjiCapturedArtifacts = [];
+      return true;
+    })()`);
+  }
+
+  async writeCapturedArtifacts(outputDirectory) {
+    const artifacts = await this.evaluate(`(() => {
+      const captured = window.__yinjiCapturedArtifacts || [];
+      window.__yinjiCapturedArtifacts = [];
+      return captured;
+    })()`);
+    const written = [];
+    for (const artifact of artifacts) {
+      const pdfPath = path.join(outputDirectory, artifact.outputFilename);
+      const sidecarPath = path.join(outputDirectory, artifact.sidecarName);
+      fs.writeFileSync(pdfPath, Buffer.from(artifact.outputBase64, 'base64'));
+      fs.writeFileSync(sidecarPath, JSON.stringify(artifact.manifest, null, 2));
+      written.push(path.basename(pdfPath), path.basename(sidecarPath));
+    }
+    return written;
+  }
+
+  async setBatchTemplate(template = {}) {
+    await this.evaluate(`(() => {
+      const template = ${asJson(template)};
+      const set = (id, value) => {
+        const node = document.getElementById(id);
+        if (!node || value === undefined || value === null) return;
+        node.value = String(value);
+        node.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      set('batch-template-pages', template.pages || 'all');
+      set('batch-template-anchor', template.anchor || 'center');
+      set('batch-template-offset-x', template.offsetX || 0);
+      set('batch-template-offset-y', template.offsetY || 0);
+      set('batch-template-size', template.size == null ? '' : Number(template.size) * 100);
+      set('batch-template-opacity', template.opacity == null ? '' : Number(template.opacity) * 100);
+      return true;
+    })()`);
+  }
+
   async click(elementId) {
     await this.evaluate(`(() => {
       const node = document.getElementById(${asJson(elementId)});

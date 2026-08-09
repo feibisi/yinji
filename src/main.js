@@ -14,6 +14,7 @@ import {
   deleteSelectedObject,
   toggleLockSelected,
   clearSelectedSeal,
+  updateSelectedSealBrightness,
 } from './modules/stamp-manager.js';
 import { exportPDF, exportCurrentPageAsImage } from './modules/exporter.js';
 import { initResponsive } from './modules/responsive.js';
@@ -45,6 +46,11 @@ import {
 } from './features/selection-controls.js';
 import { setupContextMenu } from './ui/context-menu.js';
 import { setupToolbarSections } from './ui/toolbar-sections.js';
+import {
+  decryptSealVault,
+  downloadVaultFile,
+  encryptSealVault,
+} from './modules/seal-vault.js';
 
 // ==================== DOM Elements ====================
 
@@ -1024,14 +1030,28 @@ function initializeEventListeners() {
       setState({ sealBrightness: brightness });
       brightnessValue.textContent = `${brightness}%`;
       updateSealPreviewBrightness(sealPreviewImg);
+      updateSelectedSealBrightness(brightness);
     });
   }
 
   // Remove white background
   if (removeBgBtn) {
-    removeBgBtn.addEventListener('click', () => {
-      removeWhiteBackground(sealPreviewImg);
-      updateToolbarStatus();
+    removeBgBtn.addEventListener('click', async () => {
+      removeBgBtn.disabled = true;
+      try {
+        await removeWhiteBackground(sealPreviewImg);
+        updateToolbarStatus();
+      } finally {
+        removeBgBtn.disabled = false;
+      }
+    });
+  }
+
+  const autoRemoveBackground = document.getElementById('auto-remove-bg');
+  if (autoRemoveBackground) {
+    autoRemoveBackground.checked = getState().autoRemoveSealBackground !== false;
+    autoRemoveBackground.addEventListener('change', () => {
+      setState({ autoRemoveSealBackground: autoRemoveBackground.checked });
     });
   }
 
@@ -1048,6 +1068,62 @@ function initializeEventListeners() {
   }
 
   setupSignatureModal();
+
+  const exportVaultButton = document.getElementById('export-seal-vault');
+  const importVaultButton = document.getElementById('import-seal-vault');
+  const vaultInput = document.getElementById('seal-vault-input');
+  if (exportVaultButton) {
+    exportVaultButton.addEventListener('click', async () => {
+      const seals = window.SealLibrary.getSavedSeals();
+      if (seals.length === 0) {
+        window.Toast.warning('印章库还是空的。');
+        return;
+      }
+      const passphrase = await window.Settings.promptInput({
+        title: '加密备份印章库',
+        message: '输入至少 8 位口令。Yinji 不保存口令，遗忘后无法恢复。',
+        placeholder: '保险库口令',
+        inputType: 'password',
+      });
+      if (!passphrase) return;
+      try {
+        downloadVaultFile(await encryptSealVault(seals, passphrase));
+        window.Toast.success('加密保险库已开始下载。');
+      } catch (error) {
+        window.Toast.error(error.message || '加密备份失败');
+      }
+    });
+  }
+  if (importVaultButton && vaultInput) {
+    importVaultButton.addEventListener('click', () => vaultInput.click());
+    vaultInput.addEventListener('change', async () => {
+      const file = vaultInput.files?.[0];
+      vaultInput.value = '';
+      if (!file) return;
+      const passphrase = await window.Settings.promptInput({
+        title: '恢复加密印章库',
+        message: '输入创建保险库时使用的口令。恢复会替换当前印章库。',
+        placeholder: '保险库口令',
+        inputType: 'password',
+      });
+      if (!passphrase) return;
+      try {
+        const envelope = JSON.parse(await file.text());
+        const seals = await decryptSealVault(envelope, passphrase);
+        const confirmed = await window.Settings.confirmAction({
+          title: '替换当前印章库',
+          message: `保险库包含 ${seals.length} 个印章。确定替换当前印章库吗？`,
+          confirmText: '恢复',
+          danger: true,
+        });
+        if (!confirmed) return;
+        const count = window.SealLibrary.replaceSealLibrary(seals);
+        window.Toast.success(`已恢复 ${count} 个印章。`);
+      } catch (error) {
+        window.Toast.error(error.message || '恢复保险库失败');
+      }
+    });
+  }
 
   // Virtual scroller handles thumbnail rendering automatically
   // No need for manual scroll listeners - handled by initVirtualScroller()

@@ -178,6 +178,7 @@ export async function handlePdfFile(
   try {
     const sourceBytes = await readFileAsBytes(file);
     assertActiveLoad(requestId);
+    setState({ originalSourceBytes: sourceBytes });
 
     const originalPdfBytes =
       sourceKind === 'image'
@@ -605,6 +606,7 @@ export function cleanupAllResources() {
     pageFitScales: [],
     pdfDoc: null,
     originalPdfBytes: null,
+    originalSourceBytes: null,
     currentPdfFile: null,
     currentSourceKind: null,
     totalPages: 0,

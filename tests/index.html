@@ -35,6 +35,10 @@
       <h2>扫描效果测试</h2>
       <div id="scan-effect-results"></div>
     </div>
+    <div class="test-section">
+      <h2>素材、证据与安全测试</h2>
+      <div id="advanced-results"></div>
+    </div>
     <div id="test-results">运行测试中...</div>
     <div style="margin-top: 1.5rem;">
       <button class="btn" id="rerun-btn">重新运行所有测试</button>
@@ -49,6 +53,7 @@
     import { runValidatorTests } from './validators.test.js';
     import { runStateTests } from './state.test.js';
     import { runScanEffectTests } from './scan-effect.test.js';
+    import { runAdvancedFeatureTests } from './advanced-features.test.js';
 
     function renderSection(targetId, label, results) {
       const total = results.passed + results.failed;
@@ -56,9 +61,9 @@
         label + ': ' + results.passed + '/' + total + ' 通过';
     }
 
-    function renderSummary(validatorResults, stateResults, scanEffectResults) {
-      const totalPassed = validatorResults.passed + stateResults.passed + scanEffectResults.passed;
-      const totalFailed = validatorResults.failed + stateResults.failed + scanEffectResults.failed;
+    function renderSummary(validatorResults, stateResults, scanEffectResults, advancedResults) {
+      const totalPassed = validatorResults.passed + stateResults.passed + scanEffectResults.passed + advancedResults.passed;
+      const totalFailed = validatorResults.failed + stateResults.failed + scanEffectResults.failed + advancedResults.failed;
       const total = totalPassed + totalFailed;
       const pct = total > 0 ? Math.round((totalPassed / total) * 100) : 0;
 
@@ -78,11 +83,13 @@
       const validatorResults = runValidatorTests();
       const stateResults = runStateTests();
       const scanEffectResults = await runScanEffectTests();
+      const advancedResults = await runAdvancedFeatureTests();
 
       renderSection('validators-results', 'Validators', validatorResults);
       renderSection('state-results', 'State', stateResults);
       renderSection('scan-effect-results', 'ScanEffect', scanEffectResults);
-      renderSummary(validatorResults, stateResults, scanEffectResults);
+      renderSection('advanced-results', 'Advanced', advancedResults);
+      renderSummary(validatorResults, stateResults, scanEffectResults, advancedResults);
     }
 
     document.getElementById('rerun-btn').addEventListener('click', runAllTests);

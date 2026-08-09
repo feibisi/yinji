@@ -5,6 +5,22 @@ All notable changes to PDF Stamper will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - 2026-08-09
+
+### Added
+- 边缘连通白底清除，上传印章时可自动处理并保留原始素材
+- 导出 PDF 的 `yinji-evidence/v1` SHA-256 证据记录
+- `yinji-stamp-template/v1` 批量页码、位置、偏移、尺寸和透明度模板
+- 骑缝章导出前完整页覆盖校验
+- PBKDF2 + AES-GCM 加密印章库备份和恢复
+- `stamp` CLI 以及隔离的外部 `sign` 命令契约
+
+### Fixed
+- 深浅滑块现在立即更新已放置的普通章或整组骑缝章
+- 非直角旋转长方形印章/签名不再被原画布边界裁切
+- 印章库恢复后正确保留数值 0，损坏图像不会提前替换预览
+- 设置导入和持久化会限制尺寸、旋转和透明度范围
+
 ## [1.2.0] - 2026-01-09
 
 ### Added

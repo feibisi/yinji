@@ -62,6 +62,14 @@ function saveSealsTolocalStorage(seals) {
   }
 }
 
+function replaceSealLibrary(seals) {
+  if (!Array.isArray(seals)) return false;
+  const valid = seals.filter(isValidSeal).slice(0, MAX_SEALS);
+  saveSealsTolocalStorage(valid);
+  renderSealLibrary();
+  return valid.length;
+}
+
 /**
  * Add a seal to the library with full settings
  * @param {string} name - Seal name
@@ -90,10 +98,10 @@ function addSealToLibrary(name, imageData, settings = {}) {
     id: Date.now().toString(),
     name: name,
     imageData: imageData,
-    rotation: settings.rotation || 0,
-    opacity: settings.opacity || 1,
-    size: settings.size || 0.15,
-    brightness: settings.brightness || 100,
+    rotation: Number.isFinite(settings.rotation) ? settings.rotation : 0,
+    opacity: Number.isFinite(settings.opacity) ? settings.opacity : 1,
+    size: Number.isFinite(settings.size) ? settings.size : 0.15,
+    brightness: Number.isFinite(settings.brightness) ? settings.brightness : 100,
     createdAt: new Date().toISOString(),
   };
 
@@ -261,10 +269,6 @@ function loadAndApplySeal(sealId) {
   const brightnessValue = document.getElementById('brightness-value');
 
   if (sealPreviewImg && sealPlaceholder) {
-    sealPreviewImg.src = seal.imageData;
-    sealPreviewImg.classList.remove('hidden');
-    sealPlaceholder.classList.add('hidden');
-
     const currentSettings = window.Settings.getSettings();
     window.Settings.saveSettings(
       {
@@ -281,23 +285,30 @@ function loadAndApplySeal(sealId) {
 
     const sealImageElement = new Image();
     sealImageElement.onload = () => {
+      const rotation = Number.isFinite(seal.rotation) ? seal.rotation : 0;
+      const brightness = Number.isFinite(seal.brightness) ? seal.brightness : 100;
+      sealPreviewImg.src = seal.imageData;
+      sealPreviewImg.classList.remove('hidden');
+      sealPlaceholder.classList.add('hidden');
+
       // Apply all settings
       if (rotationSlider && rotationInput) {
-        rotationSlider.value = seal.rotation || 0;
-        rotationInput.value = seal.rotation || 0;
-        sealPreviewImg.style.transform = `rotate(${seal.rotation || 0}deg)`;
+        rotationSlider.value = rotation;
+        rotationInput.value = rotation;
+        sealPreviewImg.style.transform = `rotate(${rotation}deg)`;
       }
 
       if (brightnessSlider && brightnessValue) {
-        brightnessSlider.value = seal.brightness || 100;
-        brightnessValue.textContent = `${seal.brightness || 100}%`;
-        sealPreviewImg.style.filter = `brightness(${(seal.brightness || 100) / 100})`;
+        brightnessSlider.value = brightness;
+        brightnessValue.textContent = `${brightness}%`;
+        sealPreviewImg.style.filter = `brightness(${brightness / 100})`;
       }
 
       setState({
         sealImageElement,
-        sealRotation: seal.rotation || 0,
-        sealBrightness: seal.brightness || 100,
+        sealOriginalImageSrc: seal.imageData,
+        sealRotation: rotation,
+        sealBrightness: brightness,
       });
 
       // 成功提示必须在 onload 内：图片损坏时不能假报成功，
@@ -323,6 +334,7 @@ window.SealLibrary = {
   clearSealLibrary,
   renderSealLibrary,
   loadAndApplySeal,
+  replaceSealLibrary,
 };
 
 // Initialize on load

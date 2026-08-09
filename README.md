@@ -4,7 +4,9 @@
 
 手写签名和印章以图像方式叠加，不是数字证书签名，不提供签署者身份验证或文档防篡改能力。扫描件功能是视觉模拟效果，不代表文件由真实扫描设备生成。
 
-常用印章会在用户主动保存后写入浏览器本地存储；共享设备上使用后应从印章库中清除敏感素材。
+常用印章会在用户主动保存后写入浏览器本地存储；共享设备上使用后应从印章库中清除敏感素材。需要迁移时可使用口令加密的印章库备份。
+
+PDF 导出会同时生成 `.yinji.json` 证据记录，包含输入/输出 SHA-256 和盖章操作摘要。该记录便于核对产物，但不等同于数字证书签名。
 
 导出页提供三个一级入口：**普通导出、扫描件、批量处理**。扫描件不再隐藏在普通导出的折叠区中。
 
@@ -28,6 +30,7 @@ python3 -m http.server 8123
 - `src/style.css`：样式入口
 - `src/styles/`：样式拆分文件
 - `tools/ai/`：给 AI 或 CLI 用的自动化脚本
+- `tools/signing/`：可选外部数字签名适配器
 
 ## 常用验证
 
@@ -49,7 +52,13 @@ node tools/ai/yinji-cli.mjs smoke --pdf ./test-fixture.pdf
 node tools/ai/yinji-cli.mjs scan-check
 ```
 
-浏览器单元测试：打开 `http://127.0.0.1:8123/tests/index.html`，当前基线为 105 项。
+浏览器单元测试：打开 `http://127.0.0.1:8123/tests/index.html`。
+
+批量模板盖章并输出证据记录：
+
+```bash
+node tools/ai/yinji-cli.mjs stamp --pdf ./test-fixture.pdf --seal demo --output-dir /tmp/yinji-output
+```
 
 导出当前状态快照：
 
@@ -97,6 +106,8 @@ node tools/ai/yinji-cli.mjs capture --pdf ./test-fixture.pdf --seal demo --add-s
 
 - 项目规则看 `AGENTS.md`
 - 任务流程和验证路径看 `docs/AI_RUNBOOK.md`
+- 用户操作看 `docs/USER_GUIDE.md`
+- 格式、加密和 CLI 接口看 `docs/TECHNICAL_GUIDE.md`
 - Codex skill 入口在 `.codex/skills/yinji/SKILL.md`
 
 ## 夹具

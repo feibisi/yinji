@@ -12,6 +12,9 @@ const appState = {
   /** @type {Uint8Array|null} 原始PDF字节数据 */
   originalPdfBytes: null,
 
+  /** @type {Uint8Array|null} 用户选择的原始文件字节（图片来源时不同于内部 PDF） */
+  originalSourceBytes: null,
+
   /** @type {File|null} 当前 PDF 文件 */
   currentPdfFile: null,
 
@@ -23,6 +26,12 @@ const appState = {
 
   /** @type {HTMLImageElement|null} 印章图片元素 */
   sealImageElement: null,
+
+  /** @type {string} 未经破坏性处理的原始印章图片 */
+  sealOriginalImageSrc: '',
+
+  /** @type {boolean} 选择图片后是否自动去除边缘白底 */
+  autoRemoveSealBackground: true,
 
   /** @type {number} 当前活动页面编号 */
   currentActivePage: 1,

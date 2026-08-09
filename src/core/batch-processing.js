@@ -7,6 +7,12 @@ import { getState } from './state.js';
 import { dataUrlToUint8Array } from '../utils/data-url.js';
 import { generateSafeExportFilename } from '../utils/security.js';
 import { buildScannedPdfFromBytes } from '../modules/scan-export.js';
+import { downloadExportArtifacts } from '../modules/evidence-manifest.js';
+import {
+  calculateStampPlacement,
+  resolveTemplatePages,
+  sanitizeStampTemplate,
+} from '../modules/stamp-template.js';
 
 // ==================== State ====================
 
@@ -231,6 +237,7 @@ async function processSingleBatchFile(fileItem, options = {}) {
     sealBrightness = 100,
   } = getState();
   const settings = window.Settings.getSettings();
+  const template = sanitizeStampTemplate(options.template || readTemplateControls());
   const { getRotatedCroppedImage } = await import('../modules/stamp-manager.js');
   const rotatedSealUrl = getRotatedCroppedImage(
     sealImage,
@@ -240,22 +247,45 @@ async function processSingleBatchFile(fileItem, options = {}) {
   const pngImageBytes = dataUrlToUint8Array(rotatedSealUrl);
   const pngImage = await pdfDoc.embedPng(pngImageBytes);
 
-  // 批量模式按当前印章设置在每页居中盖章。
+  const targetPages = new Set(resolveTemplatePages(template.pages, pages.length));
+  if (targetPages.size === 0) {
+    throw new Error('批量模板没有匹配到任何页面');
+  }
+  const operationRecords = [];
   for (let pageIndex = 0; pageIndex < pages.length; pageIndex += 1) {
+    if (!targetPages.has(pageIndex + 1)) continue;
     if (signal?.aborted) {
       throw new DOMException('批量处理已取消', 'AbortError');
     }
     const page = pages[pageIndex];
     const { width: pageWidth, height: pageHeight } = page.getSize();
-    const sealWidth = pageWidth * settings.sealSize;
+    const sealWidth = pageWidth * (template.size ?? settings.sealSize);
     const sealHeight = sealWidth * (pngImage.height / pngImage.width);
+    const placement = calculateStampPlacement({
+      pageWidth,
+      pageHeight,
+      stampWidth: sealWidth,
+      stampHeight: sealHeight,
+      template,
+    });
     page.drawImage(pngImage, {
-      x: (pageWidth - sealWidth) / 2,
-      y: (pageHeight - sealHeight) / 2,
+      x: placement.x,
+      y: placement.y,
       width: sealWidth,
       height: sealHeight,
       rotate: degrees(0),
-      opacity: settings.sealOpacity,
+      opacity: template.opacity ?? settings.sealOpacity,
+    });
+    operationRecords.push({
+      page: pageIndex + 1,
+      kind: 'batch-stamp',
+      anchor: template.anchor,
+      x: Number(placement.x.toFixed(2)),
+      y: Number(placement.y.toFixed(2)),
+      width: Number(sealWidth.toFixed(2)),
+      height: Number(sealHeight.toFixed(2)),
+      opacity: template.opacity ?? settings.sealOpacity,
+      brightness: sealBrightness,
     });
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
@@ -272,15 +302,35 @@ async function processSingleBatchFile(fileItem, options = {}) {
     });
   }
 
-  const blob = new Blob([processedPdfBytes], { type: 'application/pdf' });
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = generateSafeExportFilename(
+  const outputFilename = generateSafeExportFilename(
     fileItem.file,
     scan ? '_盖章扫描件' : '_盖章版'
   );
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  await downloadExportArtifacts({
+    sourceFile: fileItem.file,
+    sourceBytes: pdfBytes,
+    outputBytes: processedPdfBytes,
+    outputFilename,
+    mode: scan ? 'batch-scan-simulation' : 'batch-visual-stamp',
+    pageCount: pages.length,
+    operations: operationRecords,
+    settings: { template, scan: scan || null },
+  });
+}
+
+function readTemplateControls() {
+  const percentageOrNull = (id) => {
+    const value = document.getElementById(id)?.value?.trim();
+    return value ? Number(value) / 100 : null;
+  };
+  return sanitizeStampTemplate({
+    pages: document.getElementById('batch-template-pages')?.value || 'all',
+    anchor: document.getElementById('batch-template-anchor')?.value || 'center',
+    offsetX: document.getElementById('batch-template-offset-x')?.value || 0,
+    offsetY: document.getElementById('batch-template-offset-y')?.value || 0,
+    size: percentageOrNull('batch-template-size'),
+    opacity: percentageOrNull('batch-template-opacity'),
+  });
 }
 
 function processBatchScannedFiles(scan) {

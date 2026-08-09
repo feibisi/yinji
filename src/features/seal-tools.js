@@ -1,4 +1,6 @@
 import { getState, setState } from '../core/state.js';
+import { removeBackgroundFromSeal } from '../modules/seal-image-processing.js';
+import { updateSelectedNormalSealSource } from '../modules/stamp-manager.js';
 
 export function updateSealPreviewBrightness(sealPreviewImg) {
   const brightness = getState().sealBrightness;
@@ -53,7 +55,7 @@ export async function saveSealToLibrary() {
   }
 }
 
-export function removeWhiteBackground(sealPreviewImg) {
+export async function removeWhiteBackground(sealPreviewImg) {
   const sealImageElement = getState().sealImageElement;
 
   if (
@@ -62,44 +64,32 @@ export function removeWhiteBackground(sealPreviewImg) {
     sealImageElement.naturalWidth === 0
   ) {
     window.Toast.warning('还没选印章图片。');
-    return;
+    return false;
   }
 
-  const img = new Image();
-  img.src = sealImageElement.src;
-  img.onload = () => {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    canvas.width = img.width;
-    canvas.height = img.height;
-    ctx.drawImage(img, 0, 0);
+  try {
+    const source = getState().sealOriginalImageSrc || sealImageElement.src;
+    const result = await removeBackgroundFromSeal(source);
+    const processedImage = new Image();
+    await new Promise((resolve, reject) => {
+      processedImage.onload = resolve;
+      processedImage.onerror = reject;
+      processedImage.src = result.dataUrl;
+    });
 
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const data = imageData.data;
-    const threshold = 200;
-
-    for (let i = 0; i < data.length; i += 4) {
-      const r = data[i];
-      const g = data[i + 1];
-      const b = data[i + 2];
-
-      if (r > threshold && g > threshold && b > threshold) {
-        data[i + 3] = 0;
-      }
-    }
-
-    ctx.putImageData(imageData, 0, 0);
-
-    const newSrc = canvas.toDataURL('image/png');
-    sealImageElement.src = newSrc;
-    setState({ sealImageElement });
-    if (sealPreviewImg) {
-      sealPreviewImg.src = newSrc;
-    }
-
-    window.Toast.success('白色背景已去掉。');
-  };
-  img.onerror = () => {
+    setState({ sealImageElement: processedImage });
+    if (sealPreviewImg) sealPreviewImg.src = result.dataUrl;
+    const updatedSelection = await updateSelectedNormalSealSource(result.dataUrl);
+    const ratio = result.totalPixels > 0
+      ? Math.round((result.removedPixels / result.totalPixels) * 100)
+      : 0;
+    window.Toast.success(
+      `边缘白底已去除（约 ${ratio}%）${updatedSelection ? '，已更新选中印章' : ''}。`
+    );
+    return true;
+  } catch (error) {
+    console.error('去白底失败:', error);
     window.Toast.error('处理图片时发生错误。');
-  };
+    return false;
+  }
 }
