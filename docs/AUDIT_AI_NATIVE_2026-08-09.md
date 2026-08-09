@@ -40,6 +40,8 @@ Yinji 生成的是视觉盖章或扫描效果文件，不是具有证书、私�
 | 浏览器兼容 | macOS ARM64 / Edge 151 | 125/125 通过 |
 | Windows | 未取得实机 | 未验证，不算通过 |
 
+测试稳定性说明：连续串行执行多个 CDP 套件时，`scan-check` 曾出现一次夹具加载超时；清理前序浏览器会话后独立复跑通过，随后 Linux compatibility、MCP E2E、macOS Chrome/Edge 均通过。该现象没有形成稳定复现，但在升为 stable 前应继续观察长链测试是否再次出现。
+
 测试命令：
 
 ```bash
