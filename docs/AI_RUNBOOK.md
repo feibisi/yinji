@@ -18,6 +18,8 @@
    node tools/ai/yinji-cli.mjs state --pdf ./test-fixture.pdf --add-signature-demo
    node tools/ai/yinji-cli.mjs state --tab export --batch-pdf ./test-fixture.pdf --batch-pdf ./test-multi.pdf
    node tools/ai/yinji-cli.mjs state --seal demo --tab export --batch-pdf ./test-fixture.pdf --process-batch
+   node tools/ai/yinji-cli.mjs state --seal demo --tab export --batch-pdf ./test-fixture.pdf --process-batch-scan
+   node tools/ai/yinji-cli.mjs scan-check
    node tools/ai/yinji-cli.mjs capture --pdf ./test-fixture.pdf --seal demo --add-seal --output ./ui-check.png
    ```
 
@@ -110,6 +112,7 @@
 先看：
 - `#batchInput`
 - `#processBatch`
+- `#processBatchScan`
 - `src/core/batch-processing.js`
 
 浏览器里确认：
@@ -121,16 +124,20 @@
 通过标准：
 - 能加入文件
 - 队列数量和状态正确
+- 能批量盖章并按当前扫描、水印和 PDF 信息设置转成图片版 PDF
+- 处理中可取消，未完成文件仍留在队列
 
 ### 查本地存储
 
 先看：
 - `src/core/settings.js`
 - `src/core/seal-library.js`
+- `src/features/scan-ui.js`
 
 浏览器里确认：
 - `localStorage.getItem('pdf-stamper-settings')`
 - `localStorage.getItem('pdf-stamper-seal-library')`
+- `localStorage.getItem('yinji-scan-config')`
 
 通过标准：
 - 设置保存后刷新仍在
@@ -143,3 +150,5 @@
    - 单页图片也可以直接传给 `--pdf`，例如 `./ui-main-flow-cleanup.png`
 3. 改了 UI 再补一张 `capture`
 4. 涉及设置、印章库、批量处理时，再用 `state` 命令看关键状态
+5. 涉及扫描件时，跑 `node tools/ai/yinji-cli.mjs scan-check`
+6. 浏览器单元测试打开 `http://127.0.0.1:8123/tests/index.html`，失败数必须为 0

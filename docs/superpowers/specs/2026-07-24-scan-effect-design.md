@@ -1,5 +1,7 @@
 # 设计规格：导出为扫描件 + 高级功能
 
+> **历史规格，已由当前实现修订（2026-08-09）**：扫描件仅是视觉模拟的图片版 PDF，不代表真实扫描设备产出；不得写入冒用硬件品牌的 Creator/Producer。当前批量扫描、水印颜色/角度、真实软件来源、取消和资源释放行为以根目录 `README.md`、`src/modules/scan-export.js` 及 `tools/ai/yinji-cli.mjs scan-check` 为准。
+
 > 日期：2026-07-24 | 状态：2026-08-09 交付收口修订
 > 来源：集成 [lookscanned.io](https://github.com/lookscanned/lookscanned.io)（MIT）的"做旧成扫描件"能力，并自主实现其客户端可行的高级/付费功能。
 > 分支：`feat/scan-effect`（基于 master；实现前若审计 PR #1 已合并，需 rebase 到 master）

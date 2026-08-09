@@ -1,5 +1,7 @@
 # 导出为扫描件 + 高级功能 实现计划
 
+> **历史计划，非当前事实源（2026-08-09 更新）**：本文保留当时的实现过程和已被否决的方案。当前实现以根目录 `README.md`、`src/modules/scan-export.js` 和自动化测试为准。文中“伪装成扫描仪”及 Canon 元数据示例已经撤销；产品只可写入真实的 `Yinji` / `Yinji PDF Processor` 来源，不得冒用硬件品牌或真实扫描设备。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 给印迹新增「导出为扫描件」能力——把已盖章的 PDF/图片处理成看起来像真实打印后扫描的文档，并自主实现水印、PDF 元数据、DPI、批量等高级功能，全部解锁无门槛。

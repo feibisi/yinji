@@ -47,6 +47,8 @@ node tools/ai/yinji-cli.mjs smoke --pdf ./test-fixture.pdf
 node tools/ai/yinji-cli.mjs scan-check
 ```
 
+浏览器单元测试：打开 `http://127.0.0.1:8123/tests/index.html`，当前基线为 105 项。
+
 导出当前状态快照：
 
 ```bash
@@ -71,6 +73,12 @@ node tools/ai/yinji-cli.mjs state --tab export --batch-pdf ./test-fixture.pdf --
 node tools/ai/yinji-cli.mjs state --seal demo --tab export --batch-pdf ./test-fixture.pdf --process-batch
 ```
 
+验证批量盖章并转扫描件：
+
+```bash
+node tools/ai/yinji-cli.mjs state --seal demo --tab export --batch-pdf ./test-fixture.pdf --process-batch-scan
+```
+
 截图：
 
 ```bash
@@ -91,3 +99,7 @@ node tools/ai/yinji-cli.mjs capture --pdf ./test-fixture.pdf --seal demo --add-s
 ## 旧文档
 
 `docs/README.md` 保留旧版对外介绍。当前开发和验证以本文件为准。
+
+## 许可证与第三方代码
+
+第三方库版本、哈希与许可证文本见 `THIRD_PARTY_NOTICES.md` 和 `licenses/`。印迹自身代码目前没有声明开源许可证；对外分发前需由仓库所有者决定授权条款。
