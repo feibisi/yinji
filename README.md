@@ -37,6 +37,12 @@ node --check src/main.js
 node tools/ai/yinji-cli.mjs smoke --pdf ./test-fixture.pdf
 ```
 
+扫描件导出回归（三页墨量差异化夹具，校验未访问页内容、页号映射、上下方向、三档元数据）：
+
+```bash
+node tools/ai/yinji-cli.mjs scan-check
+```
+
 导出当前状态快照：
 
 ```bash

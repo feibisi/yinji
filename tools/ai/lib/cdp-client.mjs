@@ -26,11 +26,14 @@ export async function openPageTarget(pageUrl, cdpBaseUrl = DEFAULT_CDP_BASE_URL)
 }
 
 export class CDPClient {
-  constructor(wsUrl) {
+  constructor(wsUrl, { targetId = '', cdpBaseUrl = DEFAULT_CDP_BASE_URL } = {}) {
     this.wsUrl = wsUrl;
     this.ws = null;
     this.id = 0;
     this.pending = new Map();
+    // 记录独占标签页, close() 时一并关掉, 避免共用 9222 时标签越堆越多
+    this.targetId = targetId;
+    this.cdpBaseUrl = cdpBaseUrl;
   }
 
   async connect() {
@@ -120,12 +123,26 @@ export class CDPClient {
   }
 
   async close() {
-    if (!this.ws) {
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
+
+    if (!this.targetId) {
       return;
     }
 
-    this.ws.close();
-    this.ws = null;
+    const targetId = this.targetId;
+    this.targetId = '';
+
+    try {
+      await fetch(
+        `${this.cdpBaseUrl.replace(/\/$/, '')}/json/close/${targetId}`
+      );
+    } catch (error) {
+      // 浏览器已退出属正常情况, 不影响检查结论
+      console.warn('关闭调试标签页失败:', error?.message || error);
+    }
   }
 }
 
@@ -136,7 +153,10 @@ export async function createBrowserSession({
   height = 960,
 } = {}) {
   const target = await openPageTarget(pageUrl, cdpBaseUrl);
-  const client = new CDPClient(target.webSocketDebuggerUrl);
+  const client = new CDPClient(target.webSocketDebuggerUrl, {
+    targetId: target.id,
+    cdpBaseUrl,
+  });
 
   await client.connect();
   await client.send('Page.enable');
@@ -144,6 +164,8 @@ export async function createBrowserSession({
   await client.send('DOM.enable');
   await client.send('Network.enable');
   await client.send('Network.setCacheDisabled', { cacheDisabled: true });
+  // 单靠 setCacheDisabled 不清已有条目, 改过的 ES module 可能仍命中旧副本导致假绿
+  await client.send('Network.clearBrowserCache');
   await client.send('Emulation.setDeviceMetricsOverride', {
     width,
     height,

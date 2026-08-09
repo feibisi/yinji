@@ -1,0 +1,75 @@
+/* 扫描件面板 */
+.scan-preset-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.scan-field {
+  display: grid;
+  grid-template-columns: 72px 1fr 56px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.scan-field label {
+  color: var(--text-color-secondary);
+}
+
+.scan-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-color-secondary);
+  font-size: 12px;
+}
+
+.scan-text-input {
+  grid-column: 2 / 4;
+  width: 100%;
+  padding: 4px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.scan-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.scan-more {
+  margin: 10px 0;
+  border-top: 1px solid var(--border-color);
+  padding-top: 8px;
+}
+
+.scan-more > summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-color-secondary);
+  margin-bottom: 8px;
+}
+
+.scan-hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-color-light);
+  line-height: 1.5;
+}
+
+/* 预览覆盖层: 挂在 fabric 的 .canvas-container 内(它有 position:relative),
+   故 top/left:0 正好压在页面画布上。pointer-events:none 保证不挡用户操作。 */
+.scan-preview-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 5;
+}

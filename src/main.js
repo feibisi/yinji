@@ -38,6 +38,7 @@ import {
   updateSealPreviewBrightness,
 } from './features/seal-tools.js';
 import { setupBatchUI } from './features/batch-ui.js';
+import { setupScanUI } from './features/scan-ui.js';
 import {
   setupSelectionControls,
   syncSelectionCanvasState,
@@ -369,6 +370,9 @@ async function main() {
 
   // Initialize responsive layout for mobile
   initResponsive();
+
+  // Initialize scan export panel (settings + live preview + export wiring)
+  setupScanUI();
 
   // Initialize virtual scroller for thumbnails (will be activated after PDF load)
   const thumbnailContainer = document.getElementById('thumbnail-container');

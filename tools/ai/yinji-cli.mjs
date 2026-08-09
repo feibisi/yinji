@@ -11,6 +11,7 @@ function printHelp() {
 用法:
   node tools/ai/yinji-cli.mjs smoke --pdf ./test-fixture.pdf [--seal demo]
   node tools/ai/yinji-cli.mjs state --pdf ./test-fixture.pdf [--seal demo] [--add-seal] [--add-signature-demo] [--batch-pdf ./test-fixture.pdf] [--batch-pdf ./test-multi.pdf] [--process-batch] [--tab edit|export] [--collapse-sidebar]
+  node tools/ai/yinji-cli.mjs scan-check
   node tools/ai/yinji-cli.mjs capture --output ./shot.png [--pdf ./test-fixture.pdf] [--seal demo] [--add-seal] [--add-signature-demo] [--batch-pdf ./test-fixture.pdf] [--batch-pdf ./test-multi.pdf] [--process-batch] [--tab edit|export] [--collapse-sidebar] [--modal settings|help]
 
 可选参数:
@@ -29,6 +30,9 @@ function printHelp() {
   --collapse-sidebar  折叠左侧页面预览
   --modal       打开 settings 或 help
   --output      截图输出路径
+
+scan-check 自带三页墨量差异化夹具, 校验扫描件导出的未访问页内容、页号映射、
+上下方向与三档元数据, 不需要 --pdf。失败时退出码为 1。
 `);
 }
 
@@ -132,6 +136,17 @@ async function main() {
         seal: seal || 'demo',
       });
       console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+
+    if (command === 'scan-check') {
+      const result = await driver.runScanCheck();
+      console.log(JSON.stringify(result, null, 2));
+
+      if (!result.ok) {
+        process.exitCode = 1;
+      }
+
       return;
     }
 
