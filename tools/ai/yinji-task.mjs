@@ -135,7 +135,9 @@ async function main() {
   const index = process.argv.indexOf('--task');
   if (index < 0 || !process.argv[index + 1]) taskError('TASK_PATH_REQUIRED', '用法：node tools/ai/yinji-task.mjs --task ./task.json');
   const taskPath = path.resolve(process.argv[index + 1]);
-  const task = JSON.parse(fs.readFileSync(taskPath, 'utf8'));
+  // Windows PowerShell 5 的 Set-Content -Encoding UTF8 会写入 BOM；
+  // Agent 生成的合法 JSON 不应因此无法执行。
+  const task = JSON.parse(fs.readFileSync(taskPath, 'utf8').replace(/^\uFEFF/, ''));
   const execution = runAgentTask(task, { baseDirectory: path.dirname(taskPath) });
   if (execution.diagnostics) process.stderr.write(`${execution.diagnostics}\n`);
   process.stdout.write(`${JSON.stringify(execution.result, null, 2)}\n`);

@@ -31,7 +31,7 @@ Yinji 生成的是视觉盖章或扫描效果文件，不是具有证书、私�
 | 范围 | 环境 | 结果 |
 |---|---|---|
 | 浏览器单元测试 | Linux ARM64 / Chrome 150 | 125/125 通过 |
-| Agent 合约 | Linux / Node 22 | 14 项通过 |
+| Agent 合约 | Linux / Node 22 | 15 项通过 |
 | MCP smoke | Linux / Node 22 | 6 个工具发现通过 |
 | MCP 真实盖章和 verify | Linux / Chrome 150 | 通过 |
 | 扫描回归 | Linux / Chrome 150 | 未访问页、页码、方向、三档和取消通过 |
@@ -62,6 +62,7 @@ python3 tools/release/build-release.py --output-dir dist
 - 已修复：MCP 服务器版本曾硬编码。现在统一读取 `version.json`。
 - 已修复：JSON Task 曾允许未知字段。现在失败关闭。
 - 已修复：`inspect` 失败结构与其他 Agent 操作不一致。现在统一返回 `error.code` 和 `error.message`。
+- 已修复：Windows PowerShell 5 生成的 UTF-8 BOM JSON 会导致 Task、模板或 evidence 解析失败。现在 Agent JSON 入口兼容 BOM，并有回归测试。
 
 ## 发布门槛
 

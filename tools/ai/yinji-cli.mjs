@@ -11,7 +11,10 @@ import { YinjiDriver } from './lib/yinji-driver.mjs';
 import { assertPreflight, inspectLocalFile } from './file-preflight.mjs';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const VERSION_INFO = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'version.json'), 'utf8'));
+function readJsonFile(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, 'utf8').replace(/^\uFEFF/, ''));
+}
+const VERSION_INFO = readJsonFile(path.join(REPO_ROOT, 'version.json'));
 
 function printHelp() {
   console.log(`印迹 AI CLI
@@ -249,7 +252,7 @@ async function main() {
   if (command === 'verify') {
     const manifestPath = resolveOptionPath(options.manifest);
     if (!manifestPath || !fs.existsSync(manifestPath)) throw new Error('verify 需要可读的 --manifest');
-    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    const manifest = readJsonFile(manifestPath);
     if (manifest.schema !== 'yinji-evidence/v1') throw new Error('不支持的证据记录 schema');
     const declaredFilename = String(manifest.output?.filename || '');
     if (!declaredFilename || path.basename(declaredFilename) !== declaredFilename) {
@@ -314,7 +317,7 @@ async function main() {
     const sealInspection = seal === 'demo' ? { ok: true, kind: 'demo' } : assertPreflight(seal, { expected: 'seal' });
     const outputDirectory = path.resolve(options['output-dir'] || './yinji-output');
     const template = options.template
-      ? JSON.parse(fs.readFileSync(resolveOptionPath(options.template), 'utf8'))
+      ? readJsonFile(resolveOptionPath(options.template))
       : { schema: 'yinji-stamp-template/v1', pages: 'all', anchor: 'center' };
     stampPlan = { pdf, seal, outputDirectory, template, scan: command === 'scan', inputInspection, sealInspection };
     if (options['dry-run']) {

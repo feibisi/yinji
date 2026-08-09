@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
 
 import { inspectLocalFile } from '../ai/file-preflight.mjs';
 import { buildCliArguments, runAgentTask, validateAgentTask } from '../ai/yinji-task.mjs';
@@ -47,10 +48,16 @@ try {
   assert.equal(execution.result.ok, true);
   assert.equal(execution.result.contracts.task, 'yinji-agent-task/v1');
 
+  const bomTask = path.join(temp, 'windows-powershell-task.json');
+  fs.writeFileSync(bomTask, `\uFEFF${JSON.stringify({ schema: 'yinji-agent-task/v1', operation: 'capabilities' })}`, 'utf8');
+  const bomExecution = spawnSync(process.execPath, [path.join(root, 'tools/ai/yinji-task.mjs'), '--task', bomTask], { encoding: 'utf8' });
+  assert.equal(bomExecution.status, 0);
+  assert.equal(JSON.parse(bomExecution.stdout).ok, true);
+
   for (const schema of fs.readdirSync(path.join(root, 'schemas'))) {
     JSON.parse(fs.readFileSync(path.join(root, 'schemas', schema), 'utf8'));
   }
-  console.log(JSON.stringify({ ok: true, suite: 'agent-contract', checks: 14 }));
+  console.log(JSON.stringify({ ok: true, suite: 'agent-contract', checks: 15 }));
 } finally {
   fs.rmSync(temp, { recursive: true, force: true });
 }
