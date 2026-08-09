@@ -9,3 +9,9 @@
 - 新增 `THIRD_PARTY_NOTICES.md` 与 `licenses/`；印迹自身代码尚未选择许可证，需仓库所有者决定。
 - 验证：全量 JS `node --check` 通过；浏览器单元测试 105/105；smoke 通过；scan-check 17/17；批量扫描 UI 流程通过；桌面与 390px 移动端截图完成。
 - Forgejo 直接推分支被策略拒绝，已通过 AGit 更新现有 PR #3：`https://feicode.com/Modiqi-com/yinji/pulls/3`。
+
+## 2026-08-09 - [CX] 扫描入口体验修正
+
+- 导出页改为“普通导出 / 扫描件 / 批量处理”三个一级入口；扫描参数不再藏在普通导出折叠区。
+- 扫描预设增加选中态，模式切换后状态卡给出对应操作提示。
+- CLI 新增 `--export-mode normal|scan|batch`；三种面板切换、105/105 单元测试、smoke、scan-check、桌面与 390px 截图均通过。

@@ -411,6 +411,12 @@ export class YinjiDriver {
     await sleep(200);
   }
 
+  async switchExportMode(mode) {
+    const normalized = mode === 'normal' ? 'single' : mode;
+    await this.clickSelector(`.export-mode-btn[data-export-mode="${normalized}"]`);
+    await sleep(200);
+  }
+
   async collapseSidebar() {
     await this.click('sidebar-toggle');
     await sleep(500);
@@ -583,6 +589,8 @@ export class YinjiDriver {
       return {
         appClass: document.getElementById('app')?.className || '',
         currentTab: document.querySelector('.tab-btn.active')?.dataset.tab || '',
+        exportMode: document.querySelector('.export-mode-btn.active')?.dataset.exportMode || '',
+        visibleExportPanel: document.querySelector('.export-mode-panel:not([hidden])')?.dataset.exportModePanel || '',
         sidebarCollapsed: document.getElementById('app')?.classList.contains('sidebar-collapsed') || false,
         pdfLoaded: Boolean(state?.currentPdfFile),
         fileName: state?.currentPdfFile?.name || '',
@@ -624,6 +632,7 @@ export class YinjiDriver {
     processBatch = false,
     processBatchScan = false,
     tab = '',
+    exportMode = '',
     collapseSidebar = false,
     modal = '',
   } = {}) {
@@ -647,6 +656,10 @@ export class YinjiDriver {
 
     if (tab) {
       await this.switchTab(tab);
+    }
+
+    if (exportMode) {
+      await this.switchExportMode(exportMode);
     }
 
     if (batchPdfs.length > 0) {

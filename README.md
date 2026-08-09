@@ -6,6 +6,8 @@
 
 常用印章会在用户主动保存后写入浏览器本地存储；共享设备上使用后应从印章库中清除敏感素材。
 
+导出页提供三个一级入口：**普通导出、扫描件、批量处理**。扫描件不再隐藏在普通导出的折叠区中。
+
 ## 本地运行
 
 ```bash
@@ -53,6 +55,12 @@ node tools/ai/yinji-cli.mjs scan-check
 
 ```bash
 node tools/ai/yinji-cli.mjs state --pdf ./test-fixture.pdf --seal demo --add-seal
+```
+
+验证三个导出入口：
+
+```bash
+node tools/ai/yinji-cli.mjs state --pdf ./test-fixture.pdf --tab export --export-mode scan
 ```
 
 验证手写签名：

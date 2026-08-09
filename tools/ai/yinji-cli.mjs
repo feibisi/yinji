@@ -10,7 +10,7 @@ function printHelp() {
 
 用法:
   node tools/ai/yinji-cli.mjs smoke --pdf ./test-fixture.pdf [--seal demo]
-  node tools/ai/yinji-cli.mjs state --pdf ./test-fixture.pdf [--seal demo] [--batch-pdf ./test-fixture.pdf] [--process-batch|--process-batch-scan]
+  node tools/ai/yinji-cli.mjs state --pdf ./test-fixture.pdf [--seal demo] [--export-mode normal|scan|batch]
   node tools/ai/yinji-cli.mjs scan-check
   node tools/ai/yinji-cli.mjs capture --output ./shot.png [--pdf ./test-fixture.pdf] [--seal demo] [--add-seal] [--add-signature-demo] [--batch-pdf ./test-fixture.pdf] [--batch-pdf ./test-multi.pdf] [--process-batch] [--tab edit|export] [--collapse-sidebar] [--modal settings|help]
 
@@ -28,6 +28,7 @@ function printHelp() {
   --process-batch  自动开始批量处理，并等待界面流程结束
   --process-batch-scan  自动批量盖章并转为扫描件
   --tab         切到 edit 或 export
+  --export-mode 切到普通导出、扫描件或批量处理（normal|scan|batch）
   --collapse-sidebar  折叠左侧页面预览
   --modal       打开 settings 或 help
   --output      截图输出路径
@@ -162,6 +163,7 @@ async function main() {
         processBatch: Boolean(options['process-batch']),
         processBatchScan: Boolean(options['process-batch-scan']),
         tab: options.tab || '',
+        exportMode: options['export-mode'] || '',
         collapseSidebar: Boolean(options['collapse-sidebar']),
         modal: options.modal || '',
       });

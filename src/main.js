@@ -112,7 +112,7 @@ let currentExportMode = getStoredExportMode();
 function getStoredExportMode() {
   try {
     const savedMode = window.localStorage?.getItem(EXPORT_MODE_STORAGE_KEY);
-    return savedMode === 'batch' ? 'batch' : 'single';
+    return ['single', 'scan', 'batch'].includes(savedMode) ? savedMode : 'single';
   } catch (error) {
     return 'single';
   }
@@ -156,7 +156,7 @@ function switchToolbarTab(targetTab) {
 }
 
 function setExportMode(mode, { save = true } = {}) {
-  currentExportMode = mode === 'batch' ? 'batch' : 'single';
+  currentExportMode = ['single', 'scan', 'batch'].includes(mode) ? mode : 'single';
 
   exportModeButtons.forEach((button) => {
     const isActive = button.dataset.exportMode === currentExportMode;
@@ -296,6 +296,10 @@ function updateWorkflowGuidance({
       } else {
         text = `队列里有 ${lastBatchQueueState.count} 个文件，可以开始批量处理。`;
       }
+    } else if (currentExportMode === 'scan' && !hasPdf) {
+      text = '先去「编辑」打开文件，再回来选择扫描效果。';
+    } else if (currentExportMode === 'scan') {
+      text = '先选扫描预设，需要时打开实时预览，满意后生成扫描件。';
     } else if (!hasPdf) {
       text = '先去「编辑」打开文件。';
     } else if (placedStampCount === 0) {
@@ -641,6 +645,12 @@ function updateToolbarStatus() {
         : lastBatchQueueState.count > 0
           ? `队列里有 ${lastBatchQueueState.count} 个文件。`
           : '先添加要处理的 PDF。';
+    } else if (currentExportMode === 'scan' && !hasPdf) {
+      exportStatusNote.textContent = '先打开文件，再选择扫描效果。';
+    } else if (currentExportMode === 'scan') {
+      exportStatusNote.textContent = placedStampCount > 0
+        ? `扫描件会包含已放置的 ${placedStampCount} 个对象。`
+        : '可以直接生成扫描件；当前文件还没有盖章。';
     } else if (!hasPdf) {
       exportStatusNote.textContent = '先去「编辑」打开文件。';
     } else if (placedStampCount === 0) {

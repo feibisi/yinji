@@ -123,6 +123,18 @@ function setControlChecked(id, checked) {
   }
 }
 
+function syncPresetSelection() {
+  const activePreset = Object.entries(SCAN_PRESETS).find(([, preset]) =>
+    Object.entries(preset).every(([key, value]) => scanConfig[key] === value)
+  )?.[0];
+
+  document.querySelectorAll('[data-scan-preset]').forEach((button) => {
+    const active = button.dataset.scanPreset === activePreset;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+}
+
 /** 把内存配置同步到界面控件 */
 function syncControlsFromConfig() {
   setControlValue('scan-noise', scanConfig.noise);
@@ -163,6 +175,7 @@ function syncControlsFromConfig() {
   setControlValue('scan-meta-subject', metadataConfig.subject);
   setControlValue('scan-meta-keywords', metadataConfig.keywords);
   setControlChecked('scan-meta-processor', metadataConfig.includeProcessor);
+  syncPresetSelection();
 }
 
 function removePreviewLayer() {
@@ -476,7 +489,7 @@ export function setupScanUI() {
   // 本函数先于 setupToolbarSections() 执行, 此时面板节点还在 index.html 的原始位置。
   // 之所以绑定不会丢, 是因为 toolbar-sections.js 用 appendChild 搬运节点(移动, 非克隆),
   // 监听器随节点一起走。若将来改成 cloneNode, 这里所有绑定都会静默失效。
-  const section = document.querySelector('[data-section-key="export-scan"]');
+  const section = document.querySelector('.scan-primary-section');
   if (!section || initialized) {
     return;
   }

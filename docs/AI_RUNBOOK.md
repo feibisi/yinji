@@ -19,6 +19,7 @@
    node tools/ai/yinji-cli.mjs state --tab export --batch-pdf ./test-fixture.pdf --batch-pdf ./test-multi.pdf
    node tools/ai/yinji-cli.mjs state --seal demo --tab export --batch-pdf ./test-fixture.pdf --process-batch
    node tools/ai/yinji-cli.mjs state --seal demo --tab export --batch-pdf ./test-fixture.pdf --process-batch-scan
+   node tools/ai/yinji-cli.mjs state --pdf ./test-fixture.pdf --tab export --export-mode scan
    node tools/ai/yinji-cli.mjs scan-check
    node tools/ai/yinji-cli.mjs capture --pdf ./test-fixture.pdf --seal demo --add-seal --output ./ui-check.png
    ```
@@ -99,6 +100,8 @@
 - `src/modules/batch-operations.js`
 
 浏览器里确认：
+- 顶部直接显示“普通导出 / 扫描件 / 批量处理”三个入口
+- 切到扫描件后，扫描预设与“生成并下载扫描件”按钮直接可见，不再依赖折叠区状态
 - 导出页状态卡显示文件和页数
 - `#export-hint` 有内容
 - 当前文件导出按钮在 PDF 载入后可用

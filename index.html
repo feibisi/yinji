@@ -249,8 +249,8 @@
           <!-- Tab 2: 导出 -->
           <div class="tab-panel" id="tab-export">
             <div class="toolbar-context-card toolbar-context-card-export">
-              <div class="toolbar-context-title">盖好章就能下载</div>
-              <p class="toolbar-context-copy">一般在「编辑」盖好章后回来下载。需要同时处理多份 PDF 时，切到批量处理。</p>
+              <div class="toolbar-context-title">选择你要的输出方式</div>
+              <p class="toolbar-context-copy">直接下载、生成扫描件或批量处理，三种方式都在这里。</p>
             </div>
             <div class="toolbar-status-card">
               <div class="toolbar-status-header">
@@ -270,7 +270,8 @@
               <p class="workflow-last-action" id="export-last-action">操作结果会显示在这里。</p>
             </div>
             <div class="export-mode-switch" role="tablist" aria-label="导出方式">
-              <button type="button" class="export-mode-btn active" id="export-mode-single-btn" data-export-mode="single" aria-selected="true">单份文件</button>
+              <button type="button" class="export-mode-btn active" id="export-mode-single-btn" data-export-mode="single" aria-selected="true">普通导出</button>
+              <button type="button" class="export-mode-btn" id="export-mode-scan-btn" data-export-mode="scan" aria-selected="false">扫描件</button>
               <button type="button" class="export-mode-btn" id="export-mode-batch-btn" data-export-mode="batch" aria-selected="false">批量处理</button>
             </div>
             <div class="export-mode-panel" data-export-mode-panel="single">
@@ -292,9 +293,11 @@
                 </div>
                 <p id="export-hint" class="export-hint"></p>
               </div>
-              <div class="tool-section" data-pdf-dependent="true" data-section-key="export-scan" data-section-default="closed">
-                <h3>导出为扫描件</h3>
-                <p class="tool-section-note">让文件看起来像打印后扫描的。会连印章一起处理。</p>
+            </div>
+            <div class="export-mode-panel" data-export-mode-panel="scan" hidden>
+              <div class="tool-section scan-primary-section" data-pdf-dependent="true">
+                <h3>生成扫描件</h3>
+                <p class="tool-section-note">选择一种效果，预览满意后导出。印章会一起处理。</p>
                 <div class="scan-preset-row">
                   <button type="button" class="btn btn-sm btn-secondary" data-scan-preset="light">轻度做旧</button>
                   <button type="button" class="btn btn-sm btn-secondary" data-scan-preset="standard">标准扫描</button>
@@ -419,7 +422,7 @@
                   </label>
                 </details>
                 <div class="button-group">
-                  <button id="export-scan-btn" class="btn btn-primary btn-export">导出为扫描件</button>
+                  <button id="export-scan-btn" class="btn btn-primary btn-export">生成并下载扫描件</button>
                 </div>
                 <p class="scan-hint">扫描件是视觉模拟的图片版 PDF：文字不可选、体积会变大，也不代表由真实扫描设备生成。</p>
               </div>
@@ -441,7 +444,7 @@
                   <button id="processBatchScan" class="btn btn-secondary">批量盖章并转扫描件</button>
                   <button id="clearBatch" class="btn btn-danger">清空队列</button>
                 </div>
-                <p class="scan-hint">“盖章并转扫描件”使用上方扫描、水印和 PDF 信息设置；可在处理中取消。</p>
+                <p class="scan-hint">“盖章并转扫描件”使用「扫描件」页签里的效果、水印和 PDF 信息设置；可在处理中取消。</p>
               </div>
             </div>
           </div>

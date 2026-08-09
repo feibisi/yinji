@@ -6,6 +6,17 @@
   margin-bottom: 10px;
 }
 
+.scan-preset-row .btn {
+  flex: 1 1 88px;
+}
+
+.scan-preset-row .btn.active {
+  border-color: var(--primary-500);
+  background: var(--primary-50);
+  color: var(--primary-700);
+  box-shadow: inset 0 0 0 1px var(--primary-200);
+}
+
 .scan-field {
   display: grid;
   grid-template-columns: 72px 1fr 56px;
