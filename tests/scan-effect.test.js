@@ -303,21 +303,21 @@ export async function runScanEffectTests() {
 
   // 20. 元数据默认值与 sanitize
   assert(results, DEFAULT_SCAN_METADATA.enabled === false, '元数据默认应关闭');
-  assert(results, DEFAULT_SCAN_METADATA.scannerStyle === false, '扫描仪风格默认应关闭');
-  const md = sanitizeScanMetadata({ title: 456, author: '  张三  ', evil: 1, enabled: 1, scannerStyle: 'x' });
+  assert(results, DEFAULT_SCAN_METADATA.includeProcessor === true, '默认应记录真实处理软件');
+  const md = sanitizeScanMetadata({ title: 456, author: '  张三  ', evil: 1, enabled: 1, includeProcessor: 'x' });
   assert(results, md.title === '456', '标题应转为字符串');
   assert(results, md.author === '张三', '作者应去除首尾空格');
   assert(results, md.enabled === true, 'enabled 应转布尔');
-  assert(results, md.scannerStyle === true, 'scannerStyle 应转布尔');
+  assert(results, md.includeProcessor === true, 'includeProcessor 应转布尔');
   assert(results, !('evil' in md), '未知键应剔除');
 
   // 20b. 元数据布尔字段: 脏 localStorage 里的 false 类字符串不得被当成 true
-  const mdFalse = sanitizeScanMetadata({ enabled: 'false', scannerStyle: '0' });
+  const mdFalse = sanitizeScanMetadata({ enabled: 'false', includeProcessor: '0' });
   assert(results, mdFalse.enabled === false, "元数据 enabled 字符串 'false' 应转为 false");
-  assert(results, mdFalse.scannerStyle === false, "元数据 scannerStyle 字符串 '0' 应转为 false");
-  const mdOff = sanitizeScanMetadata({ enabled: ' OFF ', scannerStyle: 'no' });
+  assert(results, mdFalse.includeProcessor === false, "元数据 includeProcessor 字符串 '0' 应转为 false");
+  const mdOff = sanitizeScanMetadata({ enabled: ' OFF ', includeProcessor: 'no' });
   assert(results, mdOff.enabled === false, "元数据 enabled ' OFF '(含空格大写) 应转为 false");
-  assert(results, mdOff.scannerStyle === false, "元数据 scannerStyle 'no' 应转为 false");
+  assert(results, mdOff.includeProcessor === false, "元数据 includeProcessor 'no' 应转为 false");
 
   // 21. 导出分辨率必须只由 originalWidth x config.scale 决定。
   // fabric 的 multiplier 乘在画布当前显示尺寸上, 而显示尺寸随窗口宽度与用户缩放浮动,

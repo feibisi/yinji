@@ -1,6 +1,6 @@
 # 设计规格：导出为扫描件 + 高级功能
 
-> 日期：2026-07-24 | 状态：已获用户批准（设计阶段）
+> 日期：2026-07-24 | 状态：2026-08-09 交付收口修订
 > 来源：集成 [lookscanned.io](https://github.com/lookscanned/lookscanned.io)（MIT）的"做旧成扫描件"能力，并自主实现其客户端可行的高级/付费功能。
 > 分支：`feat/scan-effect`（基于 master；实现前若审计 PR #1 已合并，需 rebase 到 master）
 
@@ -14,7 +14,7 @@
 - 扫描效果（全参数）+ 当前页实时预览
 - 与盖章叠加：扫描作用于"背景页 + 印章"的合成结果
 - 自定义文字水印
-- 自定义 PDF 元数据（含"扫描仪风格" Producer 伪装以增真实感）
+- 自定义 PDF 元数据；可选择写入真实的 Yinji Creator/Producer
 - 分辨率/DPI 控制
 - 批量：现有批量队列扩展支持"导出为扫描件"
 
@@ -87,9 +87,9 @@ src/styles/scan.css          扫描面板样式（经 style.css 导入）
 - 预览可见。
 
 ### 6.2 自定义 PDF 元数据
-- 字段：Title / Author / Subject / Keywords / Creator / Producer + 创建/修改时间。
+- 字段：Title / Author / Subject / Keywords + 创建/修改时间；Creator/Producer 只使用真实的 Yinji 软件标识。
 - pdf-lib：`setTitle/setAuthor/setSubject/setKeywords/setCreator/setProducer/setCreationDate/setModificationDate`。
-- "扫描仪风格"一键预设：把 Producer/Creator 填成常见扫描设备/软件字样，增强"真扫描"真实感（可选开关）。
+- 禁止冒用真实扫描设备或第三方品牌作为 Creator/Producer。视觉扫描效果不声明真实设备来源。
 
 ### 6.3 分辨率/DPI
 - 由 scale 参数驱动（ppi = scale×72，范围 72~216）。栅格化 multiplier 与 pdf-lib 页面尺寸映射一致，保证清晰度与体积平衡。
@@ -130,7 +130,7 @@ src/styles/scan.css          扫描面板样式（经 style.css 导入）
 ## 11. 分期（建议）
 
 - **Phase 1**：扫描效果核心 + 全参数 + 实时预览 + 与盖章叠加的单份导出。
-- **Phase 2**：自定义水印 + PDF 元数据（含扫描仪预设）。
+- **Phase 2**：自定义水印 + 真实 PDF 元数据。
 - **Phase 3**：批量导出为扫描件。
 
 （是否分期实现或一次做完，由实现计划阶段决定。）

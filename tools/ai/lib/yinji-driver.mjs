@@ -11,9 +11,9 @@ const SCAN_CHECK_BLANK_MEAN = 250; // 页面平均灰度高于此值即视为纯
 const SCAN_CHECK_PAGE_GAP = 20; // 相邻页墨量差下限, 用于抓页号映射错误
 const SCAN_CHECK_HALF_GAP = 40; // 第 2 页上下半区亮度差下限, 用于抓上下颠倒
 
-// 与 src/modules/scan-export.js 的扫描仪风格署名保持一致
-const SCANNER_CREATOR = 'Canon DR-C225 TWAIN';
-const SCANNER_PRODUCER = 'Canon ScanFront Image Processor';
+// 与 src/modules/scan-export.js 的真实软件署名保持一致
+const APP_CREATOR = 'Yinji';
+const APP_PRODUCER = 'Yinji PDF Processor';
 
 // scan-check 夹具: 三页 A4(612x792), 墨量刻意拉开差距。
 // 每页显式指定 color, 不依赖 pdf-lib 的默认填充色 —— 三页墨量相同的夹具会让
@@ -113,7 +113,7 @@ const SCAN_CHECK_EXPORT_SCRIPT = `(async () => {
   return { before, byteLength: bytes.length, pageCount: pdf.numPages, pages };
 })()`;
 
-// 三档元数据(关闭 / 开启普通 / 开启扫描仪风格)。元数据与画质无关, 这里降到
+// 三档元数据(关闭 / 开启但不写处理软件 / 开启并写真实处理软件)。元数据与画质无关, 这里降到
 // scale:1、noise:0 只为跑得快。读回必须带 updateMetadata:false, 否则 load 自身
 // 会重写 Producer, 校验"不含 pdf-lib"就成了自证。
 const SCAN_CHECK_METADATA_SCRIPT = `(async () => {
@@ -130,8 +130,8 @@ const SCAN_CHECK_METADATA_SCRIPT = `(async () => {
       metadata: { enabled: true, title: '扫描件校验', author: '印迹' },
     },
     {
-      name: 'enabled-scanner',
-      metadata: { enabled: true, title: '扫描件校验', scannerStyle: true },
+      name: 'enabled-processor',
+      metadata: { enabled: true, title: '扫描件校验', includeProcessor: true },
     },
   ];
 
@@ -803,13 +803,13 @@ export class YinjiDriver {
       );
     }
 
-    const scanner = metadata.find((item) => item.name === 'enabled-scanner');
-    if (scanner) {
+    const processor = metadata.find((item) => item.name === 'enabled-processor');
+    if (processor) {
       record(
-        'metadata-scanner-style',
-        scanner.creator === SCANNER_CREATOR &&
-          scanner.producer === SCANNER_PRODUCER,
-        `Producer="${scanner.producer}" Creator="${scanner.creator}"`
+        'metadata-truthful-processor',
+        processor.creator === APP_CREATOR &&
+          processor.producer === APP_PRODUCER,
+        `Producer="${processor.producer}" Creator="${processor.creator}"`
       );
     }
 

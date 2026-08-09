@@ -26,12 +26,12 @@ export const DEFAULT_SCAN_METADATA = {
   author: '',
   subject: '',
   keywords: '',
-  scannerStyle: false,
+  includeProcessor: true,
 };
 
-// 扫描仪风格: 让 PDF 元数据看起来像扫描设备产出, 增强真实感
-const SCANNER_CREATOR = 'Canon DR-C225 TWAIN';
-const SCANNER_PRODUCER = 'Canon ScanFront Image Processor';
+// 只写入真实的软件来源，不冒用具体扫描设备或第三方品牌。
+const APP_CREATOR = 'Yinji';
+const APP_PRODUCER = 'Yinji PDF Processor';
 
 // JPEG 编码质量: 兼顾体积与扫描件可读性
 const JPEG_QUALITY = 0.92;
@@ -69,7 +69,10 @@ export function sanitizeScanMetadata(raw) {
   });
 
   metadata.enabled = parseBoolean(source.enabled, metadata.enabled);
-  metadata.scannerStyle = parseBoolean(source.scannerStyle, metadata.scannerStyle);
+  metadata.includeProcessor = parseBoolean(
+    source.includeProcessor,
+    metadata.includeProcessor
+  );
 
   return metadata;
 }
@@ -225,9 +228,9 @@ export async function buildScannedPdfBytes({
     if (safeMetadata.keywords) {
       outputDoc.setKeywords(safeMetadata.keywords.split(/[,，\s]+/).filter(Boolean));
     }
-    if (safeMetadata.scannerStyle) {
-      outputDoc.setCreator(SCANNER_CREATOR);
-      outputDoc.setProducer(SCANNER_PRODUCER);
+    if (safeMetadata.includeProcessor) {
+      outputDoc.setCreator(APP_CREATOR);
+      outputDoc.setProducer(APP_PRODUCER);
     }
     const now = new Date();
     outputDoc.setCreationDate(now);

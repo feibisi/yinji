@@ -15,7 +15,7 @@
     />
     <meta
       name="keywords"
-      content="印迹,Yinji,PDF印章,图片盖章,电子印章,骑缝章,本地工具,PDF处理,批量处理"
+      content="印迹,Yinji,PDF视觉盖章,图片盖章,骑缝章,本地工具,PDF处理,批量处理"
     />
     <link rel="stylesheet" href="src/style.css">
   </head>
@@ -181,7 +181,7 @@
               </div>
               <div class="button-group button-grid-2 button-grid-readable">
                 <button class="btn btn-primary" id="upload-seal-btn">选择印章图片</button>
-                <button class="btn btn-secondary" id="quick-signature-btn">手写签名</button>
+                <button class="btn btn-secondary" id="quick-signature-btn">添加手写签名图像</button>
               </div>
               <div class="button-group button-grid-2">
                 <button id="addSeal" class="btn btn-primary">盖到当前页</button>
@@ -396,15 +396,23 @@
                     <label for="scan-meta-author">作者</label>
                     <input type="text" id="scan-meta-author" class="scan-text-input" maxlength="200">
                   </div>
+                  <div class="scan-field">
+                    <label for="scan-meta-subject">主题</label>
+                    <input type="text" id="scan-meta-subject" class="scan-text-input" maxlength="200">
+                  </div>
+                  <div class="scan-field">
+                    <label for="scan-meta-keywords">关键词</label>
+                    <input type="text" id="scan-meta-keywords" class="scan-text-input" maxlength="200" placeholder="用空格或逗号分隔">
+                  </div>
                   <label class="scan-toggle-row">
-                    <input type="checkbox" id="scan-meta-scanner">
-                    <span>伪装成扫描仪产出</span>
+                    <input type="checkbox" id="scan-meta-processor" checked>
+                    <span>标记由印迹生成</span>
                   </label>
                 </details>
                 <div class="button-group">
                   <button id="export-scan-btn" class="btn btn-primary btn-export">导出为扫描件</button>
                 </div>
-                <p class="scan-hint">扫描件是图片版 PDF：文字不可选、体积会变大，这是「像扫描」的正常结果。</p>
+                <p class="scan-hint">扫描件是视觉模拟的图片版 PDF：文字不可选、体积会变大，也不代表由真实扫描设备生成。</p>
               </div>
             </div>
             <div class="export-mode-panel" data-export-mode-panel="batch" hidden>
@@ -462,12 +470,12 @@
     <div id="signature-modal" class="modal hidden">
       <div class="modal-content">
         <div class="modal-header">
-          <h3>手写签名</h3>
+                  <h3>手写签名图像</h3>
           <button class="modal-close">&times;</button>
         </div>
         <div class="modal-body">
           <canvas id="signature-canvas" width="600" height="300"></canvas>
-          <p class="modal-hint">在上面空白处写你的签名</p>
+          <p class="modal-hint">在上方书写后会作为图像放入页面；这不是数字证书签名，也不提供身份验证或防篡改能力。</p>
         </div>
         <div class="modal-footer">
           <button id="clear-signature-btn" class="btn btn-secondary">重写</button>

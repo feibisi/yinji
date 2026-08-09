@@ -157,7 +157,9 @@ function syncControlsFromConfig() {
   setControlChecked('scan-meta-enabled', metadataConfig.enabled);
   setControlValue('scan-meta-title', metadataConfig.title);
   setControlValue('scan-meta-author', metadataConfig.author);
-  setControlChecked('scan-meta-scanner', metadataConfig.scannerStyle);
+  setControlValue('scan-meta-subject', metadataConfig.subject);
+  setControlValue('scan-meta-keywords', metadataConfig.keywords);
+  setControlChecked('scan-meta-processor', metadataConfig.includeProcessor);
 }
 
 function removePreviewLayer() {
@@ -389,9 +391,9 @@ function collectFromControls() {
     enabled: el('scan-meta-enabled')?.checked,
     title: el('scan-meta-title')?.value,
     author: el('scan-meta-author')?.value,
-    subject: metadataConfig.subject,
-    keywords: metadataConfig.keywords,
-    scannerStyle: el('scan-meta-scanner')?.checked,
+    subject: el('scan-meta-subject')?.value,
+    keywords: el('scan-meta-keywords')?.value,
+    includeProcessor: el('scan-meta-processor')?.checked,
   });
 }
 
@@ -498,7 +500,9 @@ export function setupScanUI() {
     'scan-meta-enabled',
     'scan-meta-title',
     'scan-meta-author',
-    'scan-meta-scanner',
+    'scan-meta-subject',
+    'scan-meta-keywords',
+    'scan-meta-processor',
   ];
 
   controlIds.forEach((id) => {
