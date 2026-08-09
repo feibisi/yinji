@@ -179,6 +179,7 @@ async function resetSettings() {
 
   try {
     localStorage.removeItem(SETTINGS_KEY);
+    window.ScanSettings?.reset?.();
     window.Toast?.success('设置已重置');
     return true;
   } catch (error) {
@@ -192,8 +193,12 @@ async function resetSettings() {
  * Export settings as JSON file
  */
 function exportSettings() {
-  const settings = getSettings();
-  const dataStr = JSON.stringify(settings, null, 2);
+  const payload = {
+    version: 2,
+    settings: getSettings(),
+    scan: window.ScanSettings?.get?.() || null,
+  };
+  const dataStr = JSON.stringify(payload, null, 2);
   const blob = new Blob([dataStr], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
 
@@ -216,10 +221,16 @@ function importSettings(file) {
 
   reader.onload = (e) => {
     try {
-      const settings = JSON.parse(e.target.result);
-      const mergedSettings = validateImportedSettings(settings);
+      const imported = JSON.parse(e.target.result);
+      const isBundle = isPlainObject(imported) && imported.version === 2;
+      const mergedSettings = validateImportedSettings(
+        isBundle ? imported.settings : imported
+      );
 
       if (saveSettings(mergedSettings)) {
+        if (isBundle && imported.scan !== null && imported.scan !== undefined) {
+          window.ScanSettings?.apply?.(imported.scan);
+        }
         renderSettingsModal();
         window.Toast?.success('设置已导入');
       }

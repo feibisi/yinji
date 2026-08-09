@@ -152,6 +152,9 @@ function syncControlsFromConfig() {
   setValueText('scan-watermark-opacity-value', watermarkConfig.opacity.toFixed(2));
   setControlValue('scan-watermark-size', watermarkConfig.fontSize);
   setValueText('scan-watermark-size-value', String(watermarkConfig.fontSize));
+  setControlValue('scan-watermark-angle', watermarkConfig.angle);
+  setValueText('scan-watermark-angle-value', `${watermarkConfig.angle}°`);
+  setControlValue('scan-watermark-color', watermarkConfig.color);
   setControlChecked('scan-watermark-repeat', watermarkConfig.repeat);
 
   setControlChecked('scan-meta-enabled', metadataConfig.enabled);
@@ -383,8 +386,8 @@ function collectFromControls() {
     opacity: el('scan-watermark-opacity')?.value,
     fontSize: el('scan-watermark-size')?.value,
     repeat: el('scan-watermark-repeat')?.checked,
-    color: watermarkConfig.color,
-    angle: watermarkConfig.angle,
+    color: el('scan-watermark-color')?.value,
+    angle: el('scan-watermark-angle')?.value,
   });
 
   metadataConfig = sanitizeScanMetadata({
@@ -496,6 +499,8 @@ export function setupScanUI() {
     'scan-watermark-text',
     'scan-watermark-opacity',
     'scan-watermark-size',
+    'scan-watermark-angle',
+    'scan-watermark-color',
     'scan-watermark-repeat',
     'scan-meta-enabled',
     'scan-meta-title',
@@ -532,7 +537,52 @@ export function setupScanUI() {
     exportBtn.addEventListener('click', handleExportClick);
   }
 
+  const batchScanBtn = el('processBatchScan');
+  if (batchScanBtn) {
+    batchScanBtn.addEventListener('click', () => {
+      window.BatchProcessing.processBatchScannedFiles({
+        config: scanConfig,
+        watermark: watermarkConfig,
+        metadata: metadataConfig,
+      });
+    });
+  }
+
   subscribe(handleStateChange);
 
   initialized = true;
 }
+
+function applyExternalSettings(raw) {
+  const source = raw && typeof raw === 'object' ? raw : {};
+  scanConfig = sanitizeScanConfig(source.config);
+  watermarkConfig = sanitizeWatermark(source.watermark);
+  metadataConfig = sanitizeScanMetadata(source.metadata);
+  syncControlsFromConfig();
+  persist();
+  schedulePreview();
+  return getExternalSettings();
+}
+
+function getExternalSettings() {
+  return {
+    config: getScanConfig(),
+    watermark: getScanWatermark(),
+    metadata: getScanMetadata(),
+  };
+}
+
+function resetExternalSettings() {
+  localStorage.removeItem(STORAGE_KEY);
+  return applyExternalSettings({
+    config: DEFAULT_SCAN_CONFIG,
+    watermark: DEFAULT_WATERMARK,
+    metadata: DEFAULT_SCAN_METADATA,
+  });
+}
+
+window.ScanSettings = {
+  get: getExternalSettings,
+  apply: applyExternalSettings,
+  reset: resetExternalSettings,
+};

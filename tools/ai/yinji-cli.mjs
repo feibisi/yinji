@@ -10,7 +10,7 @@ function printHelp() {
 
 用法:
   node tools/ai/yinji-cli.mjs smoke --pdf ./test-fixture.pdf [--seal demo]
-  node tools/ai/yinji-cli.mjs state --pdf ./test-fixture.pdf [--seal demo] [--add-seal] [--add-signature-demo] [--batch-pdf ./test-fixture.pdf] [--batch-pdf ./test-multi.pdf] [--process-batch] [--tab edit|export] [--collapse-sidebar]
+  node tools/ai/yinji-cli.mjs state --pdf ./test-fixture.pdf [--seal demo] [--batch-pdf ./test-fixture.pdf] [--process-batch|--process-batch-scan]
   node tools/ai/yinji-cli.mjs scan-check
   node tools/ai/yinji-cli.mjs capture --output ./shot.png [--pdf ./test-fixture.pdf] [--seal demo] [--add-seal] [--add-signature-demo] [--batch-pdf ./test-fixture.pdf] [--batch-pdf ./test-multi.pdf] [--process-batch] [--tab edit|export] [--collapse-sidebar] [--modal settings|help]
 
@@ -26,6 +26,7 @@ function printHelp() {
   --batch-pdf   加入一个批量 PDF，可重复传多次
   --batch-pdfs  加入多个批量 PDF，使用逗号分隔
   --process-batch  自动开始批量处理，并等待界面流程结束
+  --process-batch-scan  自动批量盖章并转为扫描件
   --tab         切到 edit 或 export
   --collapse-sidebar  折叠左侧页面预览
   --modal       打开 settings 或 help
@@ -54,6 +55,7 @@ function parseArgs(argv) {
         'add-seal',
         'add-signature-demo',
         'process-batch',
+        'process-batch-scan',
         'collapse-sidebar',
       ].includes(key)
     ) {
@@ -158,6 +160,7 @@ async function main() {
         addSignatureDemo: Boolean(options['add-signature-demo']),
         batchPdfs,
         processBatch: Boolean(options['process-batch']),
+        processBatchScan: Boolean(options['process-batch-scan']),
         tab: options.tab || '',
         collapseSidebar: Boolean(options['collapse-sidebar']),
         modal: options.modal || '',

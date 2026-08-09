@@ -128,6 +128,25 @@ const SCAN_CHECK_CANCEL_SCRIPT = `(async () => {
   }
 })()`;
 
+const SCAN_CHECK_STANDALONE_SCRIPT = `(async () => {
+  const scanExport = await import('/src/modules/scan-export.js');
+  const scanEffect = await import('/src/modules/scan-effect.js');
+  const input = window.AppState.getState().originalPdfBytes;
+  const bytes = await scanExport.buildScannedPdfFromBytes({
+    pdfBytes: input,
+    config: { ...scanEffect.DEFAULT_SCAN_CONFIG, scale: 1, noise: 0 },
+    watermark: { enabled: false },
+    metadata: { enabled: true, title: '批量扫描校验', includeProcessor: true },
+  });
+  const rendered = await window.pdfjsLib.getDocument({ data: bytes.slice() }).promise;
+  const metadataDoc = await window.PDFLib.PDFDocument.load(bytes, { updateMetadata: false });
+  return {
+    pageCount: rendered.numPages,
+    title: metadataDoc.getTitle() || '',
+    producer: metadataDoc.getProducer() || '',
+  };
+})()`;
+
 // 三档元数据(关闭 / 开启但不写处理软件 / 开启并写真实处理软件)。元数据与画质无关, 这里降到
 // scale:1、noise:0 只为跑得快。读回必须带 updateMetadata:false, 否则 load 自身
 // 会重写 Producer, 校验"不含 pdf-lib"就成了自证。
@@ -505,8 +524,8 @@ export class YinjiDriver {
     );
   }
 
-  async processBatchQueue(timeout = 60000) {
-    await this.click('processBatch');
+  async processBatchQueue(timeout = 60000, scan = false) {
+    await this.click(scan ? 'processBatchScan' : 'processBatch');
     await this.waitFor(
       `(() => {
         const items = Array.from(document.querySelectorAll('.batch-file-item'));
@@ -603,6 +622,7 @@ export class YinjiDriver {
     addSignatureDemo = false,
     batchPdfs = [],
     processBatch = false,
+    processBatchScan = false,
     tab = '',
     collapseSidebar = false,
     modal = '',
@@ -633,8 +653,8 @@ export class YinjiDriver {
       await this.loadBatchPdfs(batchPdfs);
     }
 
-    if (processBatch) {
-      await this.processBatchQueue();
+    if (processBatch || processBatchScan) {
+      await this.processBatchQueue(60000, processBatchScan);
     }
 
     if (collapseSidebar) {
@@ -844,6 +864,15 @@ export class YinjiDriver {
       'scan-export-cancellable',
       cancellation.cancelled === true,
       `预先取消的导出应抛出 AbortError，实际 ${cancellation.name || '未抛错'}`
+    );
+
+    const standalone = await this.evaluate(SCAN_CHECK_STANDALONE_SCRIPT);
+    record(
+      'standalone-batch-scan-pipeline',
+      standalone.pageCount === 3 &&
+        standalone.title === '批量扫描校验' &&
+        standalone.producer === APP_PRODUCER,
+      `页数=${standalone.pageCount} Title="${standalone.title}" Producer="${standalone.producer}"`
     );
 
     const failures = checks.filter((item) => !item.ok);

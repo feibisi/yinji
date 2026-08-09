@@ -38,6 +38,7 @@ const APP_PRODUCER = 'Yinji PDF Processor';
 
 // JPEG 编码质量: 兼顾体积与扫描件可读性
 const JPEG_QUALITY = 0.92;
+const EDITOR_RENDER_SCALE = 2;
 
 /**
  * 取有限正数, 依次尝试首选值与备选值, 都不合法时返回 0。
@@ -92,6 +93,23 @@ function throwIfAborted(signal) {
   }
 }
 
+function writeMetadata(outputDoc, safeMetadata) {
+  if (!safeMetadata.enabled) return;
+  if (safeMetadata.title) outputDoc.setTitle(safeMetadata.title);
+  if (safeMetadata.author) outputDoc.setAuthor(safeMetadata.author);
+  if (safeMetadata.subject) outputDoc.setSubject(safeMetadata.subject);
+  if (safeMetadata.keywords) {
+    outputDoc.setKeywords(safeMetadata.keywords.split(/[,，\s]+/).filter(Boolean));
+  }
+  if (safeMetadata.includeProcessor) {
+    outputDoc.setCreator(APP_CREATOR);
+    outputDoc.setProducer(APP_PRODUCER);
+  }
+  const now = new Date();
+  outputDoc.setCreationDate(now);
+  outputDoc.setModificationDate(now);
+}
+
 /**
  * 渲染单页扫描效果, 返回 dataURL。预览与导出共用同一路径以保证所见即所得。
  * @param {number} pageIndex 0 起
@@ -134,7 +152,8 @@ export async function renderScannedPageDataUrl(pageIndex, config, watermark, noi
     baseWidth > 0 && baseHeight > 0
       ? fabricCanvas.toDataURL({
           format: 'png',
-          multiplier: safeConfig.scale / zoom,
+          // 编辑器背景以 2x viewport 建立；除以该倍率后，scale 才真正等于 DPI/72。
+          multiplier: safeConfig.scale / EDITOR_RENDER_SCALE / zoom,
           left: 0,
           top: 0,
           width: baseWidth * zoom,
@@ -253,21 +272,7 @@ export async function buildScannedPdfBytes({
     }
   }
 
-  if (safeMetadata.enabled) {
-    if (safeMetadata.title) outputDoc.setTitle(safeMetadata.title);
-    if (safeMetadata.author) outputDoc.setAuthor(safeMetadata.author);
-    if (safeMetadata.subject) outputDoc.setSubject(safeMetadata.subject);
-    if (safeMetadata.keywords) {
-      outputDoc.setKeywords(safeMetadata.keywords.split(/[,，\s]+/).filter(Boolean));
-    }
-    if (safeMetadata.includeProcessor) {
-      outputDoc.setCreator(APP_CREATOR);
-      outputDoc.setProducer(APP_PRODUCER);
-    }
-    const now = new Date();
-    outputDoc.setCreationDate(now);
-    outputDoc.setModificationDate(now);
-  }
+  writeMetadata(outputDoc, safeMetadata);
   // enabled:false 时不写任何元数据字段: 上面的 updateMetadata:false 已确保
   // Producer/Creator/CreationDate/ModificationDate 全部缺失, 无需再置空字符串中和。
 
@@ -278,6 +283,74 @@ export async function buildScannedPdfBytes({
   }
 
   return outputDoc.save();
+}
+
+/**
+ * 把任意 PDF 字节转成扫描视觉效果。供批量管线使用，不依赖编辑器全局画布。
+ */
+export async function buildScannedPdfFromBytes({
+  pdfBytes,
+  config,
+  watermark,
+  metadata,
+  onProgress = () => {},
+  signal = null,
+} = {}) {
+  if (!pdfBytes) throw new Error('缺少 PDF 数据');
+  const safeConfig = sanitizeScanConfig(config);
+  const safeWatermark = sanitizeWatermark(watermark);
+  const safeMetadata = sanitizeScanMetadata(metadata);
+  const { PDFDocument } = window.PDFLib;
+  const input = pdfBytes instanceof Uint8Array ? pdfBytes : new Uint8Array(pdfBytes);
+  const sourceDoc = await window.pdfjsLib.getDocument({ data: input.slice() }).promise;
+  const outputDoc = await PDFDocument.create({ updateMetadata: false });
+  const noiseImage = await createNoiseImage(safeConfig.noise);
+
+  try {
+    for (let pageNum = 1; pageNum <= sourceDoc.numPages; pageNum += 1) {
+      throwIfAborted(signal);
+      onProgress(pageNum, sourceDoc.numPages);
+      const sourcePage = await sourceDoc.getPage(pageNum);
+      const pdfViewport = sourcePage.getViewport({ scale: 1 });
+      const renderViewport = sourcePage.getViewport({ scale: safeConfig.scale });
+      const sourceCanvas = document.createElement('canvas');
+      sourceCanvas.width = Math.max(1, Math.round(renderViewport.width));
+      sourceCanvas.height = Math.max(1, Math.round(renderViewport.height));
+      await sourcePage.render({
+        canvasContext: sourceCanvas.getContext('2d'),
+        viewport: renderViewport,
+      }).promise;
+      throwIfAborted(signal);
+
+      const target = document.createElement('canvas');
+      applyScanEffect(target, sourceCanvas, safeConfig, noiseImage);
+      applyWatermark(target, safeWatermark);
+      const quality = safeConfig.output_format === 'image/jpeg' ? JPEG_QUALITY : undefined;
+      const dataUrl = target.toDataURL(safeConfig.output_format, quality);
+      const imageBytes = dataUrlToUint8Array(dataUrl);
+      const embedded =
+        safeConfig.output_format === 'image/jpeg'
+          ? await outputDoc.embedJpg(imageBytes)
+          : await outputDoc.embedPng(imageBytes);
+      const outputPage = outputDoc.addPage([pdfViewport.width, pdfViewport.height]);
+      outputPage.drawImage(embedded, {
+        x: 0,
+        y: 0,
+        width: pdfViewport.width,
+        height: pdfViewport.height,
+      });
+      sourceCanvas.width = 0;
+      sourceCanvas.height = 0;
+      target.width = 0;
+      target.height = 0;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    writeMetadata(outputDoc, safeMetadata);
+    throwIfAborted(signal);
+    return outputDoc.save();
+  } finally {
+    await sourceDoc.destroy?.();
+  }
 }
 
 /**

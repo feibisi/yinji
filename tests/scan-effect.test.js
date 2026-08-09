@@ -319,7 +319,7 @@ export async function runScanEffectTests() {
   assert(results, mdOff.enabled === false, "元数据 enabled ' OFF '(含空格大写) 应转为 false");
   assert(results, mdOff.includeProcessor === false, "元数据 includeProcessor 'no' 应转为 false");
 
-  // 21. 导出分辨率必须只由 originalWidth x config.scale 决定。
+  // 21. 编辑器画布以 2x viewport 建立；导出尺寸应为 PDF 点尺寸 x scale。
   // fabric 的 multiplier 乘在画布当前显示尺寸上, 而显示尺寸随窗口宽度与用户缩放浮动,
   // 一旦被绑架, 窄窗口下会糊到不可用、放大后会暴涨。以下断言是该问题的回归护栏。
   const BASE_W = 600;
@@ -349,19 +349,19 @@ export async function runScanEffectTests() {
 
     assert(
       results,
-      Math.abs(narrowImage.width - BASE_W * 2) <= 2,
-      `窄画布(显示宽 60)下输出宽应为 ${BASE_W * 2}px, 实际 ${narrowImage.width}px`
+      Math.abs(narrowImage.width - BASE_W) <= 2,
+      `窄画布(显示宽 60)下输出宽应为 ${BASE_W}px, 实际 ${narrowImage.width}px`
     );
     // 只断言宽度会放过"截取范围不对导致的裁剪变形"(宽对而高错), 故高度同样要断言
     assert(
       results,
-      Math.abs(narrowImage.height - BASE_H * 2) <= 2,
-      `窄画布下输出高应为 ${BASE_H * 2}px, 实际 ${narrowImage.height}px`
+      Math.abs(narrowImage.height - BASE_H) <= 2,
+      `窄画布下输出高应为 ${BASE_H}px, 实际 ${narrowImage.height}px`
     );
     assert(
       results,
-      Math.abs(wideImage.width - BASE_W * 2) <= 2 && Math.abs(wideImage.height - BASE_H * 2) <= 2,
-      `宽画布(显示宽 1500)下输出应仍为 ${BASE_W * 2}x${BASE_H * 2}px, 实际 ${wideImage.width}x${wideImage.height}px`
+      Math.abs(wideImage.width - BASE_W) <= 2 && Math.abs(wideImage.height - BASE_H) <= 2,
+      `宽画布(显示宽 1500)下输出应仍为 ${BASE_W}x${BASE_H}px, 实际 ${wideImage.width}x${wideImage.height}px`
     );
     assert(
       results,
@@ -389,8 +389,8 @@ export async function runScanEffectTests() {
     );
     assert(
       results,
-      Math.abs(halfScaleImage.width - BASE_W) <= 2 && Math.abs(halfScaleImage.height - BASE_H) <= 2,
-      `scale=1 时输出应为 ${BASE_W}x${BASE_H}px, 实际 ${halfScaleImage.width}x${halfScaleImage.height}px`
+      Math.abs(halfScaleImage.width - BASE_W / 2) <= 2 && Math.abs(halfScaleImage.height - BASE_H / 2) <= 2,
+      `scale=1 时输出应为 ${BASE_W / 2}x${BASE_H / 2}px, 实际 ${halfScaleImage.width}x${halfScaleImage.height}px`
     );
 
     // 22. 输出必须真的有内容, 不能是纯白页
@@ -412,8 +412,8 @@ export async function runScanEffectTests() {
     );
     assert(
       results,
-      Math.abs(rawConfigImage.width - BASE_W * 2) <= 2,
-      `未清洗入参也应产出 ${BASE_W * 2}px 宽, 实际 ${rawConfigImage.width}px`
+      Math.abs(rawConfigImage.width - BASE_W) <= 2,
+      `未清洗入参也应产出 ${BASE_W}px 宽, 实际 ${rawConfigImage.width}px`
     );
 
     // 24. 该页没有画布时返回 null, 而不是抛错

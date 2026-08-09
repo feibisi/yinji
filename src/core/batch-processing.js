@@ -6,6 +6,7 @@
 import { getState } from './state.js';
 import { dataUrlToUint8Array } from '../utils/data-url.js';
 import { generateSafeExportFilename } from '../utils/security.js';
+import { buildScannedPdfFromBytes } from '../modules/scan-export.js';
 
 // ==================== State ====================
 
@@ -101,7 +102,7 @@ async function clearBatchQueue() {
 /**
  * Process all files in batch
  */
-async function processBatchFiles() {
+async function processBatchFiles(options = {}) {
   if (batchFiles.length === 0) {
     window.Toast?.warning('批量队列还是空的，先添加 PDF。');
     return;
@@ -119,6 +120,13 @@ async function processBatchFiles() {
     return;
   }
 
+  const scanOptions = options.scan && typeof options.scan === 'object' ? options.scan : null;
+  const abortController = new AbortController();
+  batchFiles.forEach((item) => {
+    item.status = 'pending';
+    item.progress = 0;
+    item.error = null;
+  });
   batchProcessing = true;
   const totalFiles = batchFiles.length;
   batchProgress = {
@@ -129,16 +137,16 @@ async function processBatchFiles() {
   let completed = 0;
   let failed = 0;
 
-  window.Loading.showExportLoading('批量处理中...');
-  window.Toast?.info(`开始批量处理，共 ${totalFiles} 个文件。`);
+  window.Loading.showExportLoading(scanOptions ? '批量生成扫描件...' : '批量处理中...', {
+    cancelable: true,
+    onCancel: () => abortController.abort(),
+  });
+  window.Toast?.info(`开始${scanOptions ? '批量生成盖章扫描件' : '批量处理'}，共 ${totalFiles} 个文件。`);
 
   for (let i = 0; i < batchFiles.length; i++) {
     const fileItem = batchFiles[i];
 
-    if (fileItem.status === 'completed') {
-      completed++;
-      continue;
-    }
+    if (abortController.signal.aborted) break;
 
     fileItem.status = 'processing';
     batchProgress = {
@@ -154,12 +162,27 @@ async function processBatchFiles() {
       window.Loading.updateProgress(progress, `处理文件 ${i + 1}/${totalFiles}`);
 
       // Process file
-      await processSingleBatchFile(fileItem);
+      await processSingleBatchFile(fileItem, {
+        scan: scanOptions,
+        signal: abortController.signal,
+        onPageProgress: (current, total) => {
+          const fileBase = i / totalFiles;
+          const fileShare = total > 0 ? current / total / totalFiles : 0;
+          window.Loading.updateProgress(
+            (fileBase + fileShare) * 100,
+            `${fileItem.file.name} · 扫描第 ${current}/${total} 页`
+          );
+        },
+      });
 
       fileItem.status = 'completed';
       fileItem.progress = 100;
       completed++;
     } catch (error) {
+      if (error?.name === 'AbortError') {
+        fileItem.status = 'pending';
+        break;
+      }
       console.error('处理文件失败:', error);
       fileItem.status = 'error';
       fileItem.error = error.message || '处理失败';
@@ -179,7 +202,9 @@ async function processBatchFiles() {
   renderBatchFileList();
 
   // Show summary
-  if (failed === 0) {
+  if (abortController.signal.aborted) {
+    window.Toast?.info(`已取消批量处理；完成 ${completed} 个，剩余文件仍在队列中。`);
+  } else if (failed === 0) {
     window.Toast?.success(`批量处理完成。已处理 ${completed} 个文件。`);
   } else {
     window.Toast?.warning(`批量处理完成。成功 ${completed} 个，失败 ${failed} 个。`);
@@ -190,83 +215,76 @@ async function processBatchFiles() {
  * Process a single file in batch
  * @param {Object} fileItem - File item object
  */
-async function processSingleBatchFile(fileItem) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
+async function processSingleBatchFile(fileItem, options = {}) {
+  const { scan = null, signal, onPageProgress } = options;
+  if (signal?.aborted) {
+    throw new DOMException('批量处理已取消', 'AbortError');
+  }
 
-    reader.onload = async (e) => {
-      try {
-        const pdfBytes = new Uint8Array(e.target.result);
-        const { PDFDocument, degrees } = window.PDFLib;
+  const pdfBytes = new Uint8Array(await fileItem.file.arrayBuffer());
+  const { PDFDocument, degrees } = window.PDFLib;
+  const pdfDoc = await PDFDocument.load(pdfBytes);
+  const pages = pdfDoc.getPages();
+  const {
+    sealImageElement: sealImage,
+    sealRotation = 0,
+    sealBrightness = 100,
+  } = getState();
+  const settings = window.Settings.getSettings();
+  const { getRotatedCroppedImage } = await import('../modules/stamp-manager.js');
+  const rotatedSealUrl = getRotatedCroppedImage(
+    sealImage,
+    sealRotation,
+    sealBrightness
+  );
+  const pngImageBytes = dataUrlToUint8Array(rotatedSealUrl);
+  const pngImage = await pdfDoc.embedPng(pngImageBytes);
 
-        // Load PDF
-        const pdfDoc = await PDFDocument.load(pdfBytes);
-        const pages = pdfDoc.getPages();
+  // 批量模式按当前印章设置在每页居中盖章。
+  for (let pageIndex = 0; pageIndex < pages.length; pageIndex += 1) {
+    if (signal?.aborted) {
+      throw new DOMException('批量处理已取消', 'AbortError');
+    }
+    const page = pages[pageIndex];
+    const { width: pageWidth, height: pageHeight } = page.getSize();
+    const sealWidth = pageWidth * settings.sealSize;
+    const sealHeight = sealWidth * (pngImage.height / pngImage.width);
+    page.drawImage(pngImage, {
+      x: (pageWidth - sealWidth) / 2,
+      y: (pageHeight - sealHeight) / 2,
+      width: sealWidth,
+      height: sealHeight,
+      rotate: degrees(0),
+      opacity: settings.sealOpacity,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
 
-        // Get seal configuration
-        const {
-          sealImageElement: sealImage,
-          sealRotation = 0,
-          sealBrightness = 100,
-        } = getState();
-        const settings = window.Settings.getSettings();
-        const { getRotatedCroppedImage } = await import('../modules/stamp-manager.js');
+  let processedPdfBytes = await pdfDoc.save();
+  if (scan) {
+    processedPdfBytes = await buildScannedPdfFromBytes({
+      pdfBytes: processedPdfBytes,
+      config: scan.config,
+      watermark: scan.watermark,
+      metadata: scan.metadata,
+      signal,
+      onProgress: onPageProgress,
+    });
+  }
 
-        const rotatedSealUrl = getRotatedCroppedImage(
-          sealImage,
-          sealRotation,
-          sealBrightness
-        );
-        const pngImageBytes = dataUrlToUint8Array(rotatedSealUrl);
-        const pngImage = await pdfDoc.embedPng(pngImageBytes);
+  const blob = new Blob([processedPdfBytes], { type: 'application/pdf' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = generateSafeExportFilename(
+    fileItem.file,
+    scan ? '_盖章扫描件' : '_盖章版'
+  );
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+}
 
-        // Apply seal to all pages (center position)
-        for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
-          const page = pages[pageIndex];
-          const { width: pageWidth, height: pageHeight } = page.getSize();
-
-          // Calculate seal size
-          const sealWidth = pageWidth * settings.sealSize;
-          const sealHeight = sealWidth * (pngImage.height / pngImage.width);
-
-          // Center position
-          const x = (pageWidth - sealWidth) / 2;
-          const y = (pageHeight - sealHeight) / 2;
-
-          // Draw seal
-          page.drawImage(pngImage, {
-            x: x,
-            y: y,
-            width: sealWidth,
-            height: sealHeight,
-            rotate: degrees(0),
-            opacity: settings.sealOpacity,
-          });
-        }
-
-        // Save PDF
-        const processedPdfBytes = await pdfDoc.save();
-        const blob = new Blob([processedPdfBytes], { type: 'application/pdf' });
-
-        // Download file
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        // 统一走 sanitize，并按扩展名（大小写不敏感、仅结尾）正确改名，
-        // 避免 "2024.pdf.report.pdf" 错位替换或大写 .PDF 不加后缀导致同名覆盖。
-        link.download = generateSafeExportFilename(fileItem.file, '_盖章版');
-        link.click();
-        // 延迟撤销：部分浏览器在下载真正开始前撤销会导致下载失败/空文件
-        setTimeout(() => URL.revokeObjectURL(link.href), 1000);
-
-        resolve();
-      } catch (error) {
-        reject(error);
-      }
-    };
-
-    reader.onerror = () => reject(new Error('文件读取失败'));
-    reader.readAsArrayBuffer(fileItem.file);
-  });
+function processBatchScannedFiles(scan) {
+  return processBatchFiles({ scan });
 }
 
 // ==================== UI Functions ====================
@@ -278,6 +296,7 @@ function renderBatchFileList() {
   const container = document.getElementById('batch-file-list');
   if (!container) return;
   const processBatchBtn = document.getElementById('processBatch');
+  const processBatchScanBtn = document.getElementById('processBatchScan');
   const clearBatchBtn = document.getElementById('clearBatch');
 
   const emitQueueUpdate = () => {
@@ -296,6 +315,10 @@ function renderBatchFileList() {
 
   if (processBatchBtn) {
     processBatchBtn.disabled = batchFiles.length === 0 || batchProcessing;
+  }
+
+  if (processBatchScanBtn) {
+    processBatchScanBtn.disabled = batchFiles.length === 0 || batchProcessing;
   }
 
   if (clearBatchBtn) {
@@ -389,6 +412,7 @@ window.BatchProcessing = {
   removeFileFromBatch,
   clearBatchQueue,
   processBatchFiles,
+  processBatchScannedFiles,
   renderBatchFileList,
 };
 

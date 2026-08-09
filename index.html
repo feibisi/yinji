@@ -377,6 +377,15 @@
                     <input type="range" id="scan-watermark-size" min="8" max="200" step="1">
                     <span class="scan-value" id="scan-watermark-size-value">48</span>
                   </div>
+                  <div class="scan-field">
+                    <label for="scan-watermark-angle">角度</label>
+                    <input type="range" id="scan-watermark-angle" min="-90" max="90" step="1">
+                    <span class="scan-value" id="scan-watermark-angle-value">-30°</span>
+                  </div>
+                  <div class="scan-field">
+                    <label for="scan-watermark-color">颜色</label>
+                    <input type="color" id="scan-watermark-color" value="#666666" aria-label="水印颜色">
+                  </div>
                   <label class="scan-toggle-row">
                     <input type="checkbox" id="scan-watermark-repeat" checked>
                     <span>平铺整页</span>
@@ -428,9 +437,11 @@
                 </div>
                 <div id="batch-file-list" class="batch-file-list"></div>
                 <div class="button-group button-grid-compact button-grid-compact-2">
-                  <button id="processBatch" class="btn btn-primary">开始批量处理</button>
+                  <button id="processBatch" class="btn btn-primary">批量盖章</button>
+                  <button id="processBatchScan" class="btn btn-secondary">批量盖章并转扫描件</button>
                   <button id="clearBatch" class="btn btn-danger">清空队列</button>
                 </div>
+                <p class="scan-hint">“盖章并转扫描件”使用上方扫描、水印和 PDF 信息设置；可在处理中取消。</p>
               </div>
             </div>
           </div>
