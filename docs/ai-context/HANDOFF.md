@@ -34,3 +34,14 @@
 - CLI 新增 `stamp`（CDP 本机批量盖章并写 PDF+侧车）与外部 `sign` 契约；`tools/signing/pyhanko_signer.py` 只从环境变量取 PKCS#12/口令/TSA，未配置时失败关闭。
 - 文档：`docs/IMPLEMENTATION_PLAN_2026-08-09.md`、`docs/USER_GUIDE.md`、`docs/TECHNICAL_GUIDE.md`、`docs/AI_RUNBOOK.md`、`docs/CHANGELOG.md`、根 `README.md`。
 - 验证：全量 JS/MJS 语法及 Python 编译通过；浏览器单元测试 121/121；smoke 6/6；scan-check 17/17；批量扫描 UI 通过；真实像素探针确认白底 alpha 255→0、中心保留 255、已放章亮度矩阵 0.35；5 页骑缝章整组亮度 0.42；删第 3 页切片后导出阻止且无产物；批量模板只处理第 1/5 页且 opacity=0.73；PDF、扫描 PDF、PNG 三类侧车重新计算 SHA-256 均匹配；外部 sign dry-run/调用契约通过；桌面 1440×960 与移动 390×844 截图完成。
+
+## 2026-08-09 - [CX] AI 原生接口、Windows 验收与发布候选最终交接
+
+- 当前分支 `codex/yinji-delivery`，FeiCode AGit PR #4：`https://feicode.com/Modiqi-com/yinji/pulls/4`。功能提交包括 `8843a9f`（MCP/JSON Task/Agent Skill/双层预检）、`68e6f22`（Windows PowerShell BOM JSON 兼容）；Windows 验收文档提交 `22c7cb8`。
+- Agent 接入已形成闭环：`agent-manifest.json`、`yinji-agent-task/v1`、`yinji-agent-result/v1`、6 个 MCP stdio 工具和 `integrations/agents/SKILL.md`。标准顺序为 doctor → inspect → stamp/scan → verify；默认禁止覆盖，MCP 不暴露数字签名。
+- 参数支持页码、锚点、偏移、大小、透明度、旋转、深浅和自动去背景；实际模板写入 evidence。浏览器批量路径先走 PDF.js 预检，拒绝损坏/加密/超过 500 页的 PDF。
+- kk-pc Windows 10 `10.0.19045` x64、Node `22.23.2`：Chrome `151.0.7922.76` 和 Edge `151.0.4129.72` compatibility 均为 125/125；scan-check 17 项、MCP 真实 stamp/verify、PowerShell 5 BOM JSON Task 与 evidence verify 通过。参数 evidence 实测 `rotation=-7`、`brightness=63`、`removeBackground=true`。
+- Windows 实测首次暴露 BOM JSON 解析失败，已在 `68e6f22` 修复 Task、模板和 evidence JSON 入口并增加第 15 项 Agent 合约回归；修复后的确定性 ZIP SHA-256 `ae556603d6cd570015577fd036e9f7da14f25e1fa426c5d33baff22af8ca2572` 已在 kk-pc 完整验收。
+- Windows 验收文档加入后的确定性 ZIP SHA-256 为 `66a2302758470c744d7811ecfcad6b3f6fcdab543d9f6cdb40dd659c051f1174`，仅文档/manifest 与已验收包有差异，未因文档变化重复跑浏览器测试。
+- 完整说明：`docs/AUDIT_AI_NATIVE_2026-08-09.md`、`docs/COMPATIBILITY_AND_RELEASE.md`、`docs/AGENT_API.md`、`README.md`。kk-pc 测试目录为 `C:\Users\feibisi-BH-PC\yinji-compat-final-20260809`，未安装系统级 Node，测试监听已停止。
+- 当前仍为 `1.3.0-rc.1`。稳定/公开发布的明确阻塞是仓库所有者批准并提交 `LICENSE`；若对外声明 Windows 11 认证，需 Windows 11 实机补跑。不要加入 KMS/RBAC/多租户等共享服务复杂度，除非产品边界以后改成共享服务。
