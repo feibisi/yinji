@@ -21,8 +21,11 @@ node tools/tests/compatibility-check.mjs > compatibility-report.json
 | 系统 | 浏览器 | 状态 |
 |---|---|---|
 | Linux | Chromium | 自动化主验证环境 |
-| macOS | Chrome 当前稳定版 | 必须在发候选包前实测 |
-| Windows 11 | Edge 或 Chrome 当前稳定版 | 必须由 Windows 机器生成报告 |
+| macOS 15 ARM64 | Chrome 151、Edge 151 | 已实测通过 |
+| Windows 10 19045 x64 | Chrome 151、Edge 151 | 已在 kk-pc 以 Node 22.23.2 实测通过 |
+| Windows 11 | Edge 或 Chrome 当前稳定版 | 声明 Windows 11 认证前必须由 Windows 11 实机生成报告 |
+
+kk-pc 额外完成真实 MCP 盖章与 verify、扫描导出回归、PowerShell UTF-8 BOM JSON Task，以及 `rotation=-7`、`brightness=63`、`removeBackground=true` 的 evidence 核对。测试使用确定性候选 ZIP，而不是开发目录。
 
 ## 输入和异常边界
 

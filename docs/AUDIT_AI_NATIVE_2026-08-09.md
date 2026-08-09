@@ -2,7 +2,7 @@
 
 ## 结论
 
-`1.3.0-rc.1` 已具备可由第三方 Agent 调用的本地视觉签章闭环，但仍是发布候选，不应标为稳定生产版。稳定版目前有两个明确门槛：项目所有者确认开源许可证并补入 `LICENSE`；Windows 实机完成兼容验收。
+`1.3.0-rc.1` 已具备可由第三方 Agent 调用的本地视觉签章闭环，但仍是发布候选，不应标为稳定生产版。Windows 原生兼容验收已在 kk-pc 完成；稳定版当前明确门槛是项目所有者确认开源许可证并补入 `LICENSE`。
 
 Yinji 生成的是视觉盖章或扫描效果文件，不是具有证书、私钥、时间戳和验签链的数字签名。MCP 不暴露数字签名工具；CLI 的 `sign` 只允许调用用户自行配置的外部签名程序。
 
@@ -38,7 +38,7 @@ Yinji 生成的是视觉盖章或扫描效果文件，不是具有证书、私�
 | 501 页边界 | Linux / Chrome 150 | 正确拒绝，未生成产物 |
 | 浏览器兼容 | macOS ARM64 / Chrome 151 | 125/125 通过 |
 | 浏览器兼容 | macOS ARM64 / Edge 151 | 125/125 通过 |
-| Windows | 未取得实机 | 未验证，不算通过 |
+| Windows 10 19045 x64 / Node 22.23.2 | Chrome 151、Edge 151 | 125/125；scan-check、MCP E2E、BOM JSON Task、verify 通过 |
 
 测试稳定性说明：连续串行执行多个 CDP 套件时，`scan-check` 曾出现一次夹具加载超时；清理前序浏览器会话后独立复跑通过，随后 Linux compatibility、MCP E2E、macOS Chrome/Edge 均通过。该现象没有形成稳定复现，但在升为 stable 前应继续观察长链测试是否再次出现。
 
@@ -67,6 +67,6 @@ python3 tools/release/build-release.py --output-dir dist
 ## 发布门槛
 
 - **必须补齐**：项目所有者选择并批准许可证，在仓库根目录提交真实 `LICENSE`。
-- **必须补齐**：Windows 11 上以 Chrome 或 Edge 跑 `compatibility-check.mjs` 和一次真实 MCP 盖章/verify。
+- **已完成 Windows 原生门禁**：kk-pc Windows 10 19045 x64 上 Chrome 151、Edge 151 均通过 compatibility；真实 MCP 盖章/verify、scan-check、PowerShell BOM JSON Task 和参数 evidence 均通过。若产品明确承诺 Windows 11 认证，仍应在 Windows 11 实机补跑同一套件。
 - **按部署场景决定**：如果未来变为共享服务，再增加身份认证、租户隔离、速率限制、任务队列和集中日志。当前本地单用户工具没有必要预埋这些服务端复杂度。
 - **不纳入视觉签章核心**：KMS/HSM、CA 证书链、可信时间戳和长期验证。需要法律数字签名时应接入独立合规签名器，不应把视觉印章包装成数字签名。
