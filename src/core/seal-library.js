@@ -1,19 +1,22 @@
 /**
  * Seal Library Management System for PDF Stamper
- * Manages saved seals using localStorage
+ * 默认使用 sessionStorage；旧版 localStorage 只读迁移并由用户确认清理。
  */
 
 import { setState } from './state.js';
 
 // ==================== Constants ====================
 
-const STORAGE_KEY = 'pdf-stamper-seal-library';
+const STORAGE_KEY = 'yinji-session-seal-library';
+const LEGACY_STORAGE_KEY = 'pdf-stamper-seal-library';
 const MAX_SEALS = 20; // 最多保存20个印章
+const MAX_IMAGE_DATA_LENGTH = 8 * 1024 * 1024;
+const SAFE_IMAGE_DATA = /^data:image\/(?:png|jpeg|gif|webp);base64,/i;
 
 // ==================== Storage Functions ====================
 
 /**
- * Get all saved seals from localStorage
+ * Get all saved seals from sessionStorage
  * @returns {Array} Array of seal objects
  */
 function isValidSeal(seal) {
@@ -21,13 +24,14 @@ function isValidSeal(seal) {
     seal &&
     typeof seal === 'object' &&
     typeof seal.imageData === 'string' &&
-    seal.imageData.length > 0
+    seal.imageData.length <= MAX_IMAGE_DATA_LENGTH &&
+    SAFE_IMAGE_DATA.test(seal.imageData)
   );
 }
 
 function getSavedSeals() {
   try {
-    const data = localStorage.getItem(STORAGE_KEY);
+    const data = sessionStorage.getItem(STORAGE_KEY);
     if (!data) {
       return [];
     }
@@ -37,7 +41,7 @@ function getSavedSeals() {
     // 否则被污染成 {}/字符串/数字的键会让下游 findIndex/forEach/length 全线崩溃。
     if (!Array.isArray(parsed)) {
       console.warn('印章库数据格式异常，已重置');
-      localStorage.removeItem(STORAGE_KEY);
+      sessionStorage.removeItem(STORAGE_KEY);
       return [];
     }
 
@@ -50,22 +54,48 @@ function getSavedSeals() {
 }
 
 /**
- * Save seals to localStorage
+ * Save seals to sessionStorage
  * @param {Array} seals - Array of seal objects
  */
-function saveSealsTolocalStorage(seals) {
+function saveSealsToSessionStorage(seals) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(seals));
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(seals));
   } catch (error) {
     console.error('保存印章库失败:', error);
     window.Toast?.error('保存失败，可能是存储空间不足');
   }
 }
 
+function migrateLegacyLibraryToSession() {
+  try {
+    const legacyData = localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (!legacyData) return false;
+    const parsed = JSON.parse(legacyData);
+    const valid = Array.isArray(parsed) ? parsed.filter(isValidSeal).slice(0, MAX_SEALS) : [];
+    if (!sessionStorage.getItem(STORAGE_KEY) && valid.length > 0) {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(valid));
+    }
+    return true;
+  } catch (error) {
+    console.warn('旧版印章库迁移失败:', error);
+    return true;
+  }
+}
+
+function hasLegacySealLibrary() {
+  return Boolean(localStorage.getItem(LEGACY_STORAGE_KEY));
+}
+
+function clearLegacySealLibrary() {
+  localStorage.removeItem(LEGACY_STORAGE_KEY);
+  renderSealLibrary();
+  return true;
+}
+
 function replaceSealLibrary(seals) {
   if (!Array.isArray(seals)) return false;
   const valid = seals.filter(isValidSeal).slice(0, MAX_SEALS);
-  saveSealsTolocalStorage(valid);
+  saveSealsToSessionStorage(valid);
   renderSealLibrary();
   return valid.length;
 }
@@ -78,6 +108,10 @@ function replaceSealLibrary(seals) {
  * @returns {boolean} Success status
  */
 function addSealToLibrary(name, imageData, settings = {}) {
+  if (!isValidSeal({ imageData })) {
+    window.Toast?.error('印章库仅保存 PNG、JPEG、GIF 或 WebP，且单个不超过 8 MB');
+    return false;
+  }
   const seals = getSavedSeals();
 
   // Check if name already exists (offer overwrite) - MUST check BEFORE full check
@@ -106,7 +140,7 @@ function addSealToLibrary(name, imageData, settings = {}) {
   };
 
   seals.push(newSeal);
-  saveSealsTolocalStorage(seals);
+  saveSealsToSessionStorage(seals);
   window.Toast?.success(`印章 "${name}" 已保存到库中`);
   return true;
 }
@@ -126,7 +160,7 @@ function deleteSealFromLibrary(sealId) {
 
   const sealName = seals[sealIndex].name;
   seals = seals.filter(s => s.id !== sealId);
-  saveSealsTolocalStorage(seals);
+  saveSealsToSessionStorage(seals);
   window.Toast?.success(`印章 "${sealName}" 已删除`);
   return true;
 }
@@ -158,7 +192,7 @@ async function clearSealLibrary() {
   }
 
   try {
-    localStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(STORAGE_KEY);
     window.Toast?.success('印章库已清空');
     return true;
   } catch (error) {
@@ -178,6 +212,8 @@ function renderSealLibrary() {
   if (!container) return;
 
   const seals = getSavedSeals();
+  const legacyWarning = document.getElementById('legacy-seal-library-warning');
+  if (legacyWarning) legacyWarning.hidden = !hasLegacySealLibrary();
   const emitLibraryUpdate = () => {
     document.dispatchEvent(
       new CustomEvent('pdf-stamper:seal-library-updated', {
@@ -335,9 +371,12 @@ window.SealLibrary = {
   renderSealLibrary,
   loadAndApplySeal,
   replaceSealLibrary,
+  hasLegacySealLibrary,
+  clearLegacySealLibrary,
 };
 
 // Initialize on load
+migrateLegacyLibraryToSession();
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', renderSealLibrary);
 } else {

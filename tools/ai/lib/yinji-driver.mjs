@@ -403,12 +403,27 @@ export class YinjiDriver {
     })()`);
   }
 
-  async writeCapturedArtifacts(outputDirectory) {
+  async writeCapturedArtifacts(outputDirectory, { force = false } = {}) {
     const artifacts = await this.evaluate(`(() => {
       const captured = window.__yinjiCapturedArtifacts || [];
       window.__yinjiCapturedArtifacts = [];
       return captured;
     })()`);
+    for (const artifact of artifacts) {
+      for (const name of [artifact.outputFilename, artifact.sidecarName]) {
+        if (!name || path.basename(name) !== name) {
+          throw new Error('浏览器返回了不安全的输出文件名');
+        }
+      }
+    }
+    const targets = artifacts.flatMap((artifact) => [
+      path.join(outputDirectory, artifact.outputFilename),
+      path.join(outputDirectory, artifact.sidecarName),
+    ]);
+    const conflicts = targets.filter((target) => fs.existsSync(target));
+    if (conflicts.length > 0 && !force) {
+      throw new Error(`输出文件已存在；明确使用 --force 才能覆盖：${conflicts.map((target) => path.basename(target)).join(', ')}`);
+    }
     const written = [];
     for (const artifact of artifacts) {
       const pdfPath = path.join(outputDirectory, artifact.outputFilename);

@@ -55,6 +55,8 @@
 ### E. CLI 与签名接口
 
 - `stamp` 读取模板并驱动现有浏览器处理链。
+- `scan` 复用批量扫描链；`verify` 独立重算产物哈希；`doctor` 检查运行前置条件。
+- 所有 Agent 成功和失败结果使用 `yinji-agent-result/v1` JSON。
 - `sign` 调用配置的外部命令，使用明确的输入/输出文件契约。
 - `sign` 默认关闭；未配置时失败并给出可操作错误。
 - 验收：帮助、参数错误、stamp dry-run、sign 未配置和 mock signer 测试通过。

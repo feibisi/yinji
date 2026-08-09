@@ -14,7 +14,7 @@
 
 - Web Crypto SHA-256 计算输入/输出哈希；
 - 记录输出页数、模式、盖章坐标和显示属性；
-- 每个 PDF 或 PNG 结果旁生成同名 `.yinji.json`；图片来源的 source hash 使用用户选择的原图字节，而不是内部转换 PDF；
+- 人工界面把结果与同名 `.yinji.json` 写入单个 store-method ZIP；Agent CLI 分别落盘；图片来源的 source hash 使用用户选择的原图字节，而不是内部转换 PDF；
 - `assurance.visualStampOnly=true` 明确限制。
 
 验证侧车时，应重新计算 PDF SHA-256 并与 `output.sha256` 比较，同时确认 `output.filename` 和 `output.size`。
@@ -39,7 +39,7 @@
 
 ## 加密保险库
 
-`src/modules/seal-vault.js` 定义 `yinji-seal-vault/v1`：PBKDF2-SHA-256、随机 16-byte salt、250000 次迭代、AES-256-GCM、随机 12-byte IV。备份只包含密文、salt、IV 和算法参数，不保存口令。普通印章库仍是明文 localStorage，因此共享设备应删除素材。
+`src/modules/seal-vault.js` 定义 `yinji-seal-vault/v1`：PBKDF2-SHA-256、随机 16-byte salt、250000 次迭代、AES-256-GCM、随机 12-byte IV。备份只包含密文、salt、IV 和算法参数，不保存口令。普通印章库使用 sessionStorage；旧版 localStorage 只迁入会话并等待用户明确清理。
 
 ## CLI
 
@@ -52,6 +52,8 @@ node tools/ai/yinji-cli.mjs stamp \
 ```
 
 CLI 通过 CDP 驱动本机页面，产出 PDF 和证据侧车。`--dry-run` 不连接浏览器。
+
+Agent 的 capabilities、doctor、scan、verify 和结构化错误协议见 `docs/AGENT_API.md`。
 
 外部签名契约：
 

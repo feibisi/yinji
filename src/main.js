@@ -1071,6 +1071,7 @@ function initializeEventListeners() {
 
   const exportVaultButton = document.getElementById('export-seal-vault');
   const importVaultButton = document.getElementById('import-seal-vault');
+  const clearLegacyLibraryButton = document.getElementById('clear-legacy-seal-library');
   const vaultInput = document.getElementById('seal-vault-input');
   if (exportVaultButton) {
     exportVaultButton.addEventListener('click', async () => {
@@ -1122,6 +1123,19 @@ function initializeEventListeners() {
       } catch (error) {
         window.Toast.error(error.message || '恢复保险库失败');
       }
+    });
+  }
+  if (clearLegacyLibraryButton) {
+    clearLegacyLibraryButton.addEventListener('click', async () => {
+      const confirmed = await window.Settings.confirmAction({
+        title: '清除旧版明文印章库',
+        message: '当前会话中的印章不会删除，但关闭浏览器后将消失。请先完成加密备份。',
+        confirmText: '清除旧数据',
+        danger: true,
+      });
+      if (!confirmed) return;
+      window.SealLibrary.clearLegacySealLibrary();
+      window.Toast.success('旧版明文印章库已清除。');
     });
   }
 

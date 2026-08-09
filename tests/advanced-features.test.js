@@ -10,6 +10,7 @@ import {
   validateStraddleCoverage,
 } from '../src/modules/stamp-template.js';
 import { decryptSealVault, encryptSealVault } from '../src/modules/seal-vault.js';
+import { buildZipBundle } from '../src/modules/zip-bundle.js';
 
 function createResults() {
   return { passed: 0, failed: 0, tests: [] };
@@ -76,6 +77,17 @@ export async function runAdvancedFeatureTests() {
   let wrongPasswordRejected = false;
   try { await decryptSealVault(envelope, 'wrong-passphrase'); } catch { wrongPasswordRejected = true; }
   assert(results, wrongPasswordRejected, '错误口令必须拒绝解密');
+
+  const zip = buildZipBundle([
+    { name: 'result.pdf', data: new Uint8Array([1, 2, 3]) },
+    { name: 'result.yinji.json', data: '{"ok":true}' },
+  ], { createdAt: new Date('2026-08-09T00:00:00Z') });
+  const zipText = new TextDecoder().decode(zip);
+  assert(results, new DataView(zip.buffer).getUint32(0, true) === 0x04034b50, '证据包应包含有效 ZIP 本地文件头');
+  assert(results, zipText.includes('result.pdf') && zipText.includes('result.yinji.json'), '证据包应包含结果和侧车文件名');
+  let unsafeZipNameRejected = false;
+  try { buildZipBundle([{ name: '../escape.pdf', data: 'bad' }]); } catch { unsafeZipNameRejected = true; }
+  assert(results, unsafeZipNameRejected, '证据包必须拒绝目录穿越文件名');
 
   return results;
 }

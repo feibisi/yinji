@@ -418,7 +418,7 @@ export async function exportScannedPdf({
       settings: { config, watermark, metadata },
     });
 
-    window.Toast.success(`已开始下载扫描件和证据记录：${safeFilename}`);
+    window.Toast.success(`扫描证据包已开始下载：${safeFilename}`);
   } catch (error) {
     if (error?.name === 'AbortError') {
       window.Toast.info('已取消扫描件导出。');

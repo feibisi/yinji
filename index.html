@@ -242,7 +242,12 @@
             </div>
             <div class="tool-section" data-section-key="edit-library" data-section-default="closed">
               <h3>印章库</h3>
-              <p class="tool-section-note">常用印章存在这里，下次直接用。</p>
+              <p class="tool-section-note">默认只保留到当前浏览器会话结束；长期保存请使用加密备份。</p>
+              <div class="legacy-library-warning" id="legacy-seal-library-warning" hidden>
+                <strong>发现旧版明文印章库</strong>
+                <span>已复制到当前会话。确认加密备份后，可清除旧数据。</span>
+                <button type="button" class="btn btn-danger btn-sm" id="clear-legacy-seal-library">清除旧数据</button>
+              </div>
               <div class="tool-chip-row">
                 <span class="tool-chip" id="seal-library-count-chip">已保存 0 个印章</span>
               </div>

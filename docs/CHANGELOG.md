@@ -14,12 +14,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 骑缝章导出前完整页覆盖校验
 - PBKDF2 + AES-GCM 加密印章库备份和恢复
 - `stamp` CLI 以及隔离的外部 `sign` 命令契约
+- `scan`、`verify`、`doctor`、`capabilities` Agent 命令及 `yinji-agent-result/v1`
+- 单文件 `.yinji.zip` 人工证据包，避免多文件下载权限丢失侧车
 
 ### Fixed
 - 深浅滑块现在立即更新已放置的普通章或整组骑缝章
 - 非直角旋转长方形印章/签名不再被原画布边界裁切
 - 印章库恢复后正确保留数值 0，损坏图像不会提前替换预览
 - 设置导入和持久化会限制尺寸、旋转和透明度范围
+
+### Security
+- 新保存的印章改为 sessionStorage；旧 localStorage 只迁入会话并由用户主动清理
+- 浏览器端明确拒绝证书和私钥材料，数字签名只允许外部程序契约
 
 ## [1.2.0] - 2026-01-09
 

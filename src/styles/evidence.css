@@ -7,6 +7,20 @@
   font-size: 0.82rem;
 }
 
+.legacy-library-warning {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0.65rem 0;
+  padding: 0.7rem;
+  border: 1px solid #f3b4b4;
+  border-radius: 0.65rem;
+  background: #fff7f7;
+  color: #8a1c1c;
+  font-size: 0.78rem;
+}
+
+.legacy-library-warning[hidden] { display: none; }
+
 .batch-template-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

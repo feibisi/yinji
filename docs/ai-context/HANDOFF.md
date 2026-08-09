@@ -16,6 +16,14 @@
 - 扫描预设增加选中态，模式切换后状态卡给出对应操作提示。
 - CLI 新增 `--export-mode normal|scan|batch`；三种面板切换、105/105 单元测试、smoke、scan-check、桌面与 390px 截图均通过。
 
+## 2026-08-09 - [CX] Agent 操作边界与二次审计
+
+- 产品边界已固定：浏览器只做视觉盖章/扫描效果，数字签名只能调用外部签名器；印章库改为 sessionStorage，旧 localStorage 只迁移不静默删除；人工导出为单个 `.yinji.zip`，Agent 仍输出 PDF 与侧车两个文件。
+- CLI 新增 `capabilities`、`doctor`、`scan`、`verify`，所有 Agent 成功/失败统一为 `yinji-agent-result/v1`；stamp/scan/sign 默认拒绝覆盖，sign 禁止覆盖输入并使用同目录临时文件原子完成。
+- 安全加固：印章库只保存 PNG/JPEG/GIF/WebP 且单项不超过 8 MB；ZIP 与浏览器回传文件名拒绝目录穿越；doctor 验证应用身份和 CDP WebSocket，不把任意 HTTP 200 当成功。
+- 验证：JS/MJS 全量语法与 git diff 检查通过；浏览器单元测试 124/124；smoke、scan-check 17/17、stamp、scan、verify 均通过；篡改检测、覆盖拒绝、sign 失败关闭/原子替换、旧存储迁移、人工 ZIP 系统解压和 doctor 假页面拒绝均通过。
+- 审计文档：`docs/AUDIT_AGENT_READINESS_2026-08-09.md`；Agent 契约：`docs/AGENT_API.md`；边界：`docs/PRODUCT_BOUNDARIES.md`。
+
 ## 2026-08-09 - [CX] 素材处理、证据记录与自动化接口
 
 - 修复深浅滑块只影响后续印章的问题：选中普通章立即更新，选中骑缝章任意切片时整组同步；批量选页添加的章也使用可重复调整的 Fabric ColorMatrix。

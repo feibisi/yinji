@@ -120,7 +120,7 @@ export async function exportPDF(pdfFile) {
     });
 
     window.Loading.hide();
-    window.Toast.success(`已开始下载 PDF 和证据记录：${safeFilename}`);
+    window.Toast.success(`证据包已开始下载，内含 PDF 和校验记录：${safeFilename}`);
   } catch (error) {
     console.error('导出 PDF 时发生错误:', error);
     window.Loading.hide();
@@ -201,7 +201,7 @@ export async function exportCurrentPageAsImage(sourceFile) {
     }
 
     window.Loading.hide();
-    window.Toast.success(`已开始下载图片和证据记录：${safeFilename}`);
+    window.Toast.success(`证据包已开始下载，内含图片和校验记录：${safeFilename}`);
   } catch (error) {
     console.error('导出 PNG 时发生错误:', error);
     window.Loading.hide();

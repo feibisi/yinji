@@ -22,6 +22,8 @@
    node tools/ai/yinji-cli.mjs state --pdf ./test-fixture.pdf --tab export --export-mode scan
    node tools/ai/yinji-cli.mjs scan-check
    node tools/ai/yinji-cli.mjs stamp --pdf ./test-multi.pdf --seal demo --output-dir /tmp/yinji-output
+   node tools/ai/yinji-cli.mjs scan --pdf ./test-multi.pdf --seal demo --output-dir /tmp/yinji-output
+   node tools/ai/yinji-cli.mjs verify --manifest /tmp/yinji-output/test-multi_盖章版.yinji.json
    node tools/ai/yinji-cli.mjs sign --input /tmp/yinji-output/input.pdf --output /tmp/yinji-output/signed.pdf --sign-command /path/to/signer --dry-run
    node tools/ai/yinji-cli.mjs capture --pdf ./test-fixture.pdf --seal demo --add-seal --output ./ui-check.png
    ```
@@ -109,7 +111,7 @@
 - 导出页状态卡显示文件和页数
 - `#export-hint` 有内容
 - 当前文件导出按钮在 PDF 载入后可用
-- PDF/PNG 与同名 `.yinji.json` 都能取得，侧车中的 output SHA-256 与结果文件一致
+- 人工界面取得单个 `.yinji.zip` 且解压包含结果与侧车；Agent 输出目录中两者齐全，output SHA-256 一致
 - 删除骑缝章任意一页后，全页导出应明确报缺页且不生成产物
 
 通过标准：
@@ -146,7 +148,8 @@
 
 浏览器里确认：
 - `localStorage.getItem('pdf-stamper-settings')`
-- `localStorage.getItem('pdf-stamper-seal-library')`
+- `sessionStorage.getItem('yinji-session-seal-library')`
+- `localStorage.getItem('pdf-stamper-seal-library')` 只用于检查旧版遗留数据和清理提示
 - `localStorage.getItem('yinji-scan-config')`
 
 通过标准：
