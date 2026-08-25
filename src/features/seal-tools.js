@@ -1,11 +1,14 @@
 import { getState, setState } from '../core/state.js';
-import { removeBackgroundFromSeal } from '../modules/seal-image-processing.js';
+import {
+  getSealToneCssFilter,
+  removeBackgroundFromSeal,
+} from '../modules/seal-image-processing.js';
 import { updateSelectedNormalSealSource } from '../modules/stamp-manager.js';
 
 export function updateSealPreviewBrightness(sealPreviewImg) {
   const brightness = getState().sealBrightness;
   if (sealPreviewImg && sealPreviewImg.src) {
-    sealPreviewImg.style.filter = `brightness(${brightness / 100})`;
+    sealPreviewImg.style.filter = getSealToneCssFilter(brightness);
   }
 }
 
@@ -84,7 +87,7 @@ export async function removeWhiteBackground(sealPreviewImg) {
       ? Math.round((result.removedPixels / result.totalPixels) * 100)
       : 0;
     window.Toast.success(
-      `边缘白底已去除（约 ${ratio}%）${updatedSelection ? '，已更新选中印章' : ''}。`
+      `纸张底色已去除（约 ${ratio}%）${updatedSelection ? '，已更新选中印章' : ''}。`
     );
     return true;
   } catch (error) {

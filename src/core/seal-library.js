@@ -4,6 +4,7 @@
  */
 
 import { setState } from './state.js';
+import { getSealToneCssFilter } from '../modules/seal-image-processing.js';
 
 // ==================== Constants ====================
 
@@ -337,7 +338,7 @@ function loadAndApplySeal(sealId) {
       if (brightnessSlider && brightnessValue) {
         brightnessSlider.value = brightness;
         brightnessValue.textContent = `${brightness}%`;
-        sealPreviewImg.style.filter = `brightness(${brightness / 100})`;
+        sealPreviewImg.style.filter = getSealToneCssFilter(brightness);
       }
 
       setState({

@@ -1,6 +1,8 @@
 import {
   getRotatedSealDataUrl,
+  makeSealToneMatrix,
   removeEdgeConnectedBackground,
+  removeSealBackground,
 } from '../src/modules/seal-image-processing.js';
 import { sha256Hex } from '../src/modules/evidence-manifest.js';
 import {
@@ -48,6 +50,24 @@ export async function runAdvancedFeatureTests() {
   assert(results, imageData.data[3] === 0, '边缘白色背景应透明');
   assert(results, imageData.data[(2 * 5 + 2) * 4 + 3] === 255, '封闭区域中的白色应保留');
   assert(results, background.removedPixels > 0, '应报告实际移除像素数');
+
+  const scannedPixels = new Uint8ClampedArray(3 * 3 * 4);
+  for (let offset = 0; offset < scannedPixels.length; offset += 4) {
+    scannedPixels.set([222, 220, 216, 255], offset);
+  }
+  scannedPixels.set([238, 154, 154, 255], (1 * 3 + 1) * 4);
+  const scannedImageData = new ImageData(scannedPixels, 3, 3);
+  const improvedBackground = removeSealBackground(scannedImageData);
+  assert(results, scannedImageData.data[3] === 0, '浅灰扫描底色应自动透明');
+  assert(results, scannedImageData.data[(1 * 3 + 1) * 4 + 3] === 255, '浅红印泥不应被误删');
+  assert(results, improvedBackground.backgroundColor[0] < 240, '算法应从图片边缘估算实际纸张底色');
+
+  const shallowMatrix = makeSealToneMatrix(0);
+  const normalMatrix = makeSealToneMatrix(100);
+  const deepMatrix = makeSealToneMatrix(200);
+  assert(results, shallowMatrix[0] === 1 && shallowMatrix[18] === 0.2, '调浅应降低印泥密度而不是把颜色乘成黑色');
+  assert(results, normalMatrix[0] === 1 && normalMatrix[18] === 1, '深浅 100 应保持原图');
+  assert(results, deepMatrix[0] === 0.6 && deepMatrix[18] === 1, '最深档应保留颜色并限制暗化幅度');
 
   const sourceCanvas = document.createElement('canvas');
   sourceCanvas.width = 100;

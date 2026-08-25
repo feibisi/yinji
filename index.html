@@ -185,7 +185,7 @@
               </div>
               <label class="inline-check seal-auto-background">
                 <input type="checkbox" id="auto-remove-bg" checked>
-                <span>选图后自动去除边缘白底</span>
+                <span>选图后自动去除纸张底色</span>
               </label>
               <div class="button-group button-grid-2">
                 <button id="addSeal" class="btn btn-primary">盖到当前页</button>
@@ -197,11 +197,11 @@
               <h3>更多工具</h3>
               <p class="tool-section-note">不常用的功能收在这里。</p>
               <div class="button-group button-grid-2">
-                <button class="btn btn-tertiary" id="remove-bg-btn" title="去除图片白色背景，使其透明">去掉白底</button>
+                <button class="btn btn-tertiary" id="remove-bg-btn" title="识别白色、米白或浅灰纸张底色并柔化边缘">去掉底色</button>
                 <button class="btn btn-tertiary" id="save-seal-btn">存为常用</button>
               </div>
               <div class="rotation-controls">
-                <label for="brightness-slider">亮度:</label>
+                <label for="brightness-slider" title="0 最浅，100 原色，200 最深">深浅:</label>
                 <input type="range" id="brightness-slider" min="0" max="200" value="100" step="1">
                 <span id="brightness-value">100%</span>
               </div>

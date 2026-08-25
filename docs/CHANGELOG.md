@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `inspect` 输入预检，拒绝加密、损坏、超限 PDF 和伪造印章格式
 - Agent 模板支持旋转、深浅和自动去背景
 - `version.json`、确定性候选包、发布 manifest、CycloneDX SBOM 和兼容性报告
-- 边缘连通白底清除，上传印章时可自动处理并保留原始素材
+- 自适应纸张底色清除，支持米白、浅灰扫描底色、封闭区域和抗锯齿边缘，并保留原始素材
 - 导出 PDF 的 `yinji-evidence/v1` SHA-256 证据记录
 - `yinji-stamp-template/v1` 批量页码、位置、偏移、尺寸和透明度模板
 - 骑缝章导出前完整页覆盖校验
@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 单文件 `.yinji.zip` 人工证据包，避免多文件下载权限丢失侧车
 
 ### Fixed
+- 印章深浅低值不再将彩色印章压黑；调浅改为降低印泥密度，调深限制最大暗化幅度
 - 深浅滑块现在立即更新已放置的普通章或整组骑缝章
 - 非直角旋转长方形印章/签名不再被原画布边界裁切
 - 印章库恢复后正确保留数值 0，损坏图像不会提前替换预览

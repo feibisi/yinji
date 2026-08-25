@@ -45,3 +45,11 @@
 - Windows 验收文档加入后的确定性 ZIP SHA-256 为 `66a2302758470c744d7811ecfcad6b3f6fcdab543d9f6cdb40dd659c051f1174`，仅文档/manifest 与已验收包有差异，未因文档变化重复跑浏览器测试。
 - 完整说明：`docs/AUDIT_AI_NATIVE_2026-08-09.md`、`docs/COMPATIBILITY_AND_RELEASE.md`、`docs/AGENT_API.md`、`README.md`。kk-pc 测试目录为 `C:\Users\feibisi-BH-PC\yinji-compat-final-20260809`，未安装系统级 Node，测试监听已停止。
 - 当前仍为 `1.3.0-rc.1`。稳定/公开发布的明确阻塞是仓库所有者批准并提交 `LICENSE`；若对外声明 Windows 11 认证，需 Windows 11 实机补跑。不要加入 KMS/RBAC/多租户等共享服务复杂度，除非产品边界以后改成共享服务。
+
+## 2026-08-25 - [CX] 印章深浅与自适应纸张底色修复
+
+- 根因：旧深浅矩阵直接按 `0..2` 乘 RGB，低值会把彩色印章压向黑色；Fabric 6 的 `ColorMatrix` 又默认 `colorsOnly=true`，Alpha 行不会生效。现在 `0..100` 通过 Alpha 将印泥密度从 20% 调到原色，`100..200` 只把 RGB 限制暗化到 60%，并显式启用 Alpha 处理。
+- 去背景从“边缘连通近白色”改为从四边估算白色、米白或浅灰纸张颜色，对整张图片中的同类底色透明化并柔化抗锯齿边缘；浅红、浅蓝等有明显色差的印泥保留。
+- 界面改为“深浅：0 最浅 / 100 原色 / 200 最深”和“自动去除纸张底色”；Agent API、用户指南和变更记录同步说明兼容参数语义，evidence 字段仍为 `brightness` 与 `removeBackground`。
+- 验证：5 个改动 JS 文件 `node --check` PASS；浏览器单元 131/131；Agent 合约 15/15；MCP smoke 6 个工具；真实 PDF smoke PASS；scan-check 17/17；灰底浅红夹具像素回归确认角落 Alpha=0、浅档红色像素 `[225,70,70,51]`、最深档 `[136,43,43,255]`，无页面错误。
+- 共享工作区已有 `THIRD_PARTY_NOTICES.md`、两份 PDF 夹具和 8 张截图的删除状态，本次未恢复、未暂存、未提交这些既有变更；全套测试在 `/tmp/yinji-verify-0825` 隔离工作树执行。

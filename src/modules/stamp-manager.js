@@ -4,6 +4,7 @@ import { getCurrentActivePage } from './canvas-manager.js';
 import { loadFabricImage } from '../utils/fabric-helpers.js';
 import {
   getRotatedSealDataUrl,
+  makeSealToneMatrix,
   normalizeSealBrightness,
   removeBackgroundFromSeal,
 } from './seal-image-processing.js';
@@ -96,21 +97,14 @@ export function getRotatedCroppedImage(sourceImage, angle, brightness = 100) {
   return getRotatedSealDataUrl(sourceImage, angle, brightness);
 }
 
-function makeBrightnessMatrix(brightness) {
-  const factor = normalizeSealBrightness(brightness) / 100;
-  return [
-    factor, 0, 0, 0, 0,
-    0, factor, 0, 0, 0,
-    0, 0, factor, 0, 0,
-    0, 0, 0, 1, 0,
-  ];
-}
-
 export function applyBrightnessToFabricImage(image, brightness) {
   if (!image || typeof image.applyFilters !== 'function') return;
   image.filters = [
     new window.fabric.filters.ColorMatrix({
-      matrix: makeBrightnessMatrix(brightness),
+      matrix: makeSealToneMatrix(brightness),
+      // Fabric 6 默认 colorsOnly=true，会完全忽略矩阵中的 Alpha 行。
+      // 调浅依赖降低印泥密度，因此必须显式允许处理 Alpha。
+      colorsOnly: false,
     }),
   ];
   image.yinjiBrightness = normalizeSealBrightness(brightness);

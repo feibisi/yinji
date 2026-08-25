@@ -1,4 +1,5 @@
 const DEFAULT_BACKGROUND_THRESHOLD = 232;
+const DEFAULT_BACKGROUND_FEATHER = 64;
 
 function clamp(value, min, max, fallback) {
   const numeric = Number(value);
@@ -9,6 +10,30 @@ function clamp(value, min, max, fallback) {
 
 export function normalizeSealBrightness(value) {
   return clamp(value, 0, 200, 100);
+}
+
+export function makeSealToneMatrix(brightness) {
+  const normalized = normalizeSealBrightness(brightness);
+  const shallowFactor = normalized <= 100
+    ? 0.2 + (normalized / 100) * 0.8
+    : 1;
+  const colorFactor = normalized <= 100
+    ? 1
+    : 1 - ((normalized - 100) / 100) * 0.4;
+  return [
+    colorFactor, 0, 0, 0, 0,
+    0, colorFactor, 0, 0, 0,
+    0, 0, colorFactor, 0, 0,
+    0, 0, 0, shallowFactor, 0,
+  ];
+}
+
+export function getSealToneCssFilter(brightness) {
+  const normalized = normalizeSealBrightness(brightness);
+  if (normalized <= 100) {
+    return `opacity(${0.2 + (normalized / 100) * 0.8})`;
+  }
+  return `brightness(${1 - ((normalized - 100) / 100) * 0.4})`;
 }
 
 export function normalizeBackgroundThreshold(value) {
@@ -27,6 +52,106 @@ function isBackgroundPixel(data, offset, threshold) {
 
   // 只把接近中性的亮色视作候选背景，避免浅红印章被误删。
   return min >= threshold && max - min <= 24;
+}
+
+function pixelLuminance(red, green, blue) {
+  return red * 0.2126 + green * 0.7152 + blue * 0.0722;
+}
+
+function median(values) {
+  if (values.length === 0) return 255;
+  values.sort((left, right) => left - right);
+  return values[Math.floor(values.length / 2)];
+}
+
+/**
+ * 从四边的低色差亮色像素估算纸张底色。这样拍照或扫描得到的米白、浅灰底
+ * 也能被识别，而不是只能处理纯白色。
+ */
+function estimateBackgroundColor(imageData) {
+  const { data, width, height } = imageData;
+  const samples = [[], [], []];
+  const collect = (x, y) => {
+    const offset = (y * width + x) * 4;
+    if (data[offset + 3] === 0) return;
+    const red = data[offset];
+    const green = data[offset + 1];
+    const blue = data[offset + 2];
+    const chroma = Math.max(red, green, blue) - Math.min(red, green, blue);
+    if (chroma > 42 || pixelLuminance(red, green, blue) < 150) return;
+    samples[0].push(red);
+    samples[1].push(green);
+    samples[2].push(blue);
+  };
+
+  for (let x = 0; x < width; x += 1) {
+    collect(x, 0);
+    if (height > 1) collect(x, height - 1);
+  }
+  for (let y = 1; y < height - 1; y += 1) {
+    collect(0, y);
+    if (width > 1) collect(width - 1, y);
+  }
+
+  return samples.map(median);
+}
+
+function smoothstep(value) {
+  const clamped = Math.min(1, Math.max(0, value));
+  return clamped * clamped * (3 - 2 * clamped);
+}
+
+/**
+ * 去除整张印章图中的纸张底色，并对抗锯齿边缘做柔化。
+ * 与旧的边缘洪泛不同，封闭文字和圆环内部的纸张也会透明；浅红、浅蓝等
+ * 有明显色差的印泥会保留。
+ * @returns {{removedPixels:number,softenedPixels:number,totalPixels:number,backgroundColor:number[]}}
+ */
+export function removeSealBackground(
+  imageData,
+  { threshold = DEFAULT_BACKGROUND_THRESHOLD, feather = DEFAULT_BACKGROUND_FEATHER } = {}
+) {
+  const { data, width, height } = imageData;
+  const safeThreshold = normalizeBackgroundThreshold(threshold);
+  const safeFeather = clamp(feather, 24, 96, DEFAULT_BACKGROUND_FEATHER);
+  const backgroundColor = estimateBackgroundColor(imageData);
+  const backgroundLuminance = pixelLuminance(...backgroundColor);
+  const hardDistance = Math.max(12, 255 - safeThreshold + 8);
+  const softDistance = hardDistance + safeFeather;
+  let removedPixels = 0;
+  let softenedPixels = 0;
+
+  for (let offset = 0; offset < data.length; offset += 4) {
+    const originalAlpha = data[offset + 3];
+    if (originalAlpha === 0) continue;
+    const red = data[offset];
+    const green = data[offset + 1];
+    const blue = data[offset + 2];
+    const chroma = Math.max(red, green, blue) - Math.min(red, green, blue);
+    const luminance = pixelLuminance(red, green, blue);
+    if (chroma > 52 || luminance < Math.max(132, backgroundLuminance - 105)) continue;
+
+    const distance = Math.sqrt(
+      ((red - backgroundColor[0]) ** 2
+        + (green - backgroundColor[1]) ** 2
+        + (blue - backgroundColor[2]) ** 2) / 3
+    );
+    if (distance >= softDistance) continue;
+
+    const alphaScale = smoothstep((distance - hardDistance) / (softDistance - hardDistance));
+    const nextAlpha = Math.round(originalAlpha * alphaScale);
+    if (nextAlpha === originalAlpha) continue;
+    data[offset + 3] = nextAlpha;
+    if (nextAlpha === 0) removedPixels += 1;
+    else softenedPixels += 1;
+  }
+
+  return {
+    removedPixels,
+    softenedPixels,
+    totalPixels: width * height,
+    backgroundColor,
+  };
 }
 
 /**
@@ -106,7 +231,7 @@ export async function removeBackgroundFromSeal(source, { threshold } = {}) {
   const context = canvas.getContext('2d', { willReadFrequently: true });
   context.drawImage(image, 0, 0, canvas.width, canvas.height);
   const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-  const result = removeEdgeConnectedBackground(imageData, threshold);
+  const result = removeSealBackground(imageData, { threshold });
   context.putImageData(imageData, 0, 0);
 
   return {
