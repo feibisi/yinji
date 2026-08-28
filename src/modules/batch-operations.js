@@ -459,7 +459,7 @@ export async function exportSelectedPages(originalFile, exportMode = 'selected')
           `导出第 ${i + 1}/${pagesToExport.length} 页`
         );
       }
-      window.Toast.success(`已开始下载 ${pagesToExport.length} 个独立证据包。`);
+      window.Toast.success(`已开始下载 ${pagesToExport.length} 个独立 PDF 文件。`);
     } else {
       // 合并导出为一个 PDF（含 Fabric.js 印章渲染）
       const newPdf = await PDFDocument.create();
@@ -499,7 +499,7 @@ export async function exportSelectedPages(originalFile, exportMode = 'selected')
         operations: allOperations.filter((operation) => pagesToExport.includes(operation.page)),
         settings: { sourcePages: pagesToExport },
       });
-      window.Toast.success(`已开始下载 ${pagesToExport.length} 页证据包。`);
+      window.Toast.success(`已开始下载包含 ${pagesToExport.length} 页的 PDF 文件。`);
     }
 
     window.Loading.hide();

@@ -1,5 +1,4 @@
 import { sanitizeFilename } from '../utils/security.js';
-import { buildZipBundle } from './zip-bundle.js';
 
 export const EVIDENCE_SCHEMA = 'yinji-evidence/v1';
 
@@ -100,6 +99,15 @@ function triggerDownload(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 }
 
+function inferOutputMimeType(filename, explicitMime = '') {
+  if (explicitMime) return explicitMime;
+  const lower = String(filename || '').toLowerCase();
+  if (lower.endsWith('.pdf')) return 'application/pdf';
+  if (lower.endsWith('.png')) return 'image/png';
+  if (/\.jpe?g$/.test(lower)) return 'image/jpeg';
+  return 'application/octet-stream';
+}
+
 function bytesToBase64(bytes) {
   let binary = '';
   const chunkSize = 0x8000;
@@ -114,8 +122,6 @@ export async function downloadExportArtifacts(options) {
   const outputFilename = manifest.output.filename;
   const outputBytes = toUint8Array(options.outputBytes);
   const sidecarName = outputFilename.replace(/\.[^.]+$/i, '') + '.yinji.json';
-  const manifestText = JSON.stringify(manifest, null, 2);
-  const bundleFilename = outputFilename.replace(/\.[^.]+$/i, '') + '.yinji.zip';
   if (globalThis.__yinjiCliCapture === true) {
     globalThis.__yinjiCapturedArtifacts ||= [];
     globalThis.__yinjiCapturedArtifacts.push({
@@ -125,11 +131,12 @@ export async function downloadExportArtifacts(options) {
       manifest,
     });
   } else {
-    const bundleBytes = buildZipBundle([
-      { name: outputFilename, data: outputBytes },
-      { name: sidecarName, data: manifestText },
-    ], { createdAt: new Date(manifest.createdAt) });
-    triggerDownload(new Blob([bundleBytes], { type: 'application/zip' }), bundleFilename);
+    triggerDownload(
+      new Blob([outputBytes], {
+        type: inferOutputMimeType(outputFilename, options.outputMime),
+      }),
+      outputFilename
+    );
   }
-  return { manifest, outputFilename, sidecarName, bundleFilename };
+  return { manifest, outputFilename, sidecarName, downloadFilename: outputFilename };
 }

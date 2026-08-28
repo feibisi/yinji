@@ -4,7 +4,10 @@ import {
   removeEdgeConnectedBackground,
   removeSealBackground,
 } from '../src/modules/seal-image-processing.js';
-import { sha256Hex } from '../src/modules/evidence-manifest.js';
+import {
+  downloadExportArtifacts,
+  sha256Hex,
+} from '../src/modules/evidence-manifest.js';
 import {
   calculateStampPlacement,
   resolveTemplatePages,
@@ -68,6 +71,27 @@ export async function runAdvancedFeatureTests() {
   assert(results, shallowMatrix[0] === 1 && shallowMatrix[18] === 0.2, '调浅应降低印泥密度而不是把颜色乘成黑色');
   assert(results, normalMatrix[0] === 1 && normalMatrix[18] === 1, '深浅 100 应保持原图');
   assert(results, deepMatrix[0] === 0.6 && deepMatrix[18] === 1, '最深档应保留颜色并限制暗化幅度');
+
+  const originalAnchorClick = HTMLAnchorElement.prototype.click;
+  let downloadedFilename = '';
+  HTMLAnchorElement.prototype.click = function captureDownload() {
+    downloadedFilename = this.download;
+  };
+  try {
+    const directDownload = await downloadExportArtifacts({
+      sourceFile: new File([new Uint8Array([1, 2])], 'source.pdf', { type: 'application/pdf' }),
+      sourceBytes: new Uint8Array([1, 2]),
+      outputBytes: new Uint8Array([3, 4]),
+      outputFilename: 'result.pdf',
+      mode: 'visual-stamp',
+      pageCount: 1,
+      operations: [],
+    });
+    assert(results, downloadedFilename === 'result.pdf', '人工导出应直接下载 PDF，不应改成 ZIP');
+    assert(results, directDownload.downloadFilename === 'result.pdf', '下载结果应报告原格式文件名');
+  } finally {
+    HTMLAnchorElement.prototype.click = originalAnchorClick;
+  }
 
   const sourceCanvas = document.createElement('canvas');
   sourceCanvas.width = 100;

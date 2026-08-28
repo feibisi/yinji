@@ -19,9 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PBKDF2 + AES-GCM 加密印章库备份和恢复
 - `stamp` CLI 以及隔离的外部 `sign` 命令契约
 - `scan`、`verify`、`doctor`、`capabilities` Agent 命令及 `yinji-agent-result/v1`
-- 单文件 `.yinji.zip` 人工证据包，避免多文件下载权限丢失侧车
+- Agent CLI 输出结果文件与同名 `.yinji.json` 校验记录
 
 ### Fixed
+- 人工下载恢复 PDF/PNG 原格式，不再把所有导出结果强制包装成 `.yinji.zip`
 - 印章深浅低值不再将彩色印章压黑；调浅改为降低印泥密度，调深限制最大暗化幅度
 - 深浅滑块现在立即更新已放置的普通章或整组骑缝章
 - 非直角旋转长方形印章/签名不再被原画布边界裁切
