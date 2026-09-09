@@ -53,10 +53,3 @@ export function initResponsive() {
   window.addEventListener('resize', detectAndApplyResponsive);
 }
 
-/**
- * 获取当前是否为移动端
- * @returns {boolean}
- */
-export function getIsMobile() {
-  return isMobile;
-}

@@ -238,8 +238,6 @@
     text-overflow: ellipsis;
   }
 
-  .settings-modal-actions,
-  .settings-modal-tools,
   .settings-modal-primary-actions,
   .settings-modal-secondary-actions,
   .app-dialog-actions {

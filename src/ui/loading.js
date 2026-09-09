@@ -122,32 +122,12 @@ function showExportLoading(message = '正在导出 PDF...', options = {}) {
   showLoading(message, true, options);
 }
 
-/**
- * Wrap an async operation with loading indicator
- * @param {Function} operation - Async function to execute
- * @param {string} message - Loading message
- * @param {boolean} showProgress - Whether to show progress bar
- * @returns {Promise} Result of the operation
- */
-async function withLoading(operation, message = '处理中...', showProgress = false) {
-  try {
-    showLoading(message, showProgress);
-    const result = await operation();
-    return result;
-  } finally {
-    hideLoading();
-  }
-}
-
-// ==================== Exports ====================
-
 window.Loading = {
   show: showLoading,
   hide: hideLoading,
   updateProgress: updateProgress,
   showPdfLoading: showPdfLoading,
   showExportLoading: showExportLoading,
-  withLoading: withLoading,
 };
 
 // Initialize on load

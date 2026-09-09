@@ -163,10 +163,3 @@ export function hasClipboard() {
   return _clipboard.objects.length > 0;
 }
 
-/**
- * 清空剪贴板
- */
-export function clearClipboard() {
-  _clipboard.objects = [];
-  _clipboard.sourcePage = null;
-}

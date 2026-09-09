@@ -176,33 +176,6 @@ function loadSealFromLibrary(sealId) {
   return seals.find(s => s.id === sealId) || null;
 }
 
-/**
- * Clear all seals from library
- */
-async function clearSealLibrary() {
-  const confirmed = await window.Settings.confirmAction({
-    title: '清空印章库',
-    message: '确定要清空印章库吗？此操作不可撤销。',
-    confirmText: '清空',
-    cancelText: '取消',
-    danger: true,
-  });
-
-  if (!confirmed) {
-    return false;
-  }
-
-  try {
-    sessionStorage.removeItem(STORAGE_KEY);
-    window.Toast?.success('印章库已清空');
-    return true;
-  } catch (error) {
-    console.error('清空印章库失败:', error);
-    window.Toast?.error('清空印章库失败');
-    return false;
-  }
-}
-
 // ==================== UI Functions ====================
 
 /**
@@ -368,7 +341,6 @@ window.SealLibrary = {
   addSealToLibrary,
   deleteSealFromLibrary,
   loadSealFromLibrary,
-  clearSealLibrary,
   renderSealLibrary,
   loadAndApplySeal,
   replaceSealLibrary,
