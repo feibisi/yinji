@@ -299,13 +299,23 @@ export async function addSealToSelectedPages(sealImageElement, settings) {
       entries.push({ pageNum, sealObject: img });
     }
 
-    if (entries.length > 0) {
-      const command = new window.History.AddSealsCommand(entries);
-      window.History.executeCommand(command);
+    if (entries.length === 0) {
+      window.Loading.hide();
+      window.Toast.error('所选页都没盖上，再试一次。');
+      return false;
     }
 
+    const command = new window.History.AddSealsCommand(entries);
+    window.History.executeCommand(command);
+
     window.Loading.updateProgress(100, '完成！');
-    window.Toast.success(`已在 ${pages.length} 页盖章。第一页是第 ${pages[0]} 页。`);
+    if (entries.length < pages.length) {
+      window.Toast.warning(
+        `只在 ${entries.length}/${pages.length} 页盖上了章。第一页是第 ${pages[0]} 页。`
+      );
+    } else {
+      window.Toast.success(`已在 ${entries.length} 页盖章。第一页是第 ${pages[0]} 页。`);
+    }
 
     // 返回第一页被选中的页面
     window.showPage(pages[0]);

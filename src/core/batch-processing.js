@@ -14,6 +14,27 @@ import {
   sanitizeStampTemplate,
 } from '../modules/stamp-template.js';
 
+function assertBatchPdfBytes(bytes, filename) {
+  const latinHead = new TextDecoder('latin1').decode(
+    bytes.subarray(0, Math.min(bytes.length, 1024))
+  );
+  if (!latinHead.includes('%PDF-')) {
+    throw new Error(`${filename} 不是有效 PDF`);
+  }
+  const latinTail = new TextDecoder('latin1').decode(
+    bytes.subarray(Math.max(0, bytes.length - 4096))
+  );
+  if (!latinTail.includes('%%EOF')) {
+    throw new Error(`${filename} 已损坏或不完整`);
+  }
+  const probe = new TextDecoder('latin1').decode(
+    bytes.subarray(0, Math.min(bytes.length, 512 * 1024))
+  );
+  if (/\/Encrypt\b/.test(probe)) {
+    throw new Error(`${filename} 是加密 PDF，请先解密再加入批量。`);
+  }
+}
+
 // ==================== State ====================
 
 let batchFiles = [];
@@ -228,9 +249,19 @@ async function processSingleBatchFile(fileItem, options = {}) {
   }
 
   const pdfBytes = new Uint8Array(await fileItem.file.arrayBuffer());
+  assertBatchPdfBytes(pdfBytes, fileItem.file.name);
   const { PDFDocument, degrees } = window.PDFLib;
-  const pdfDoc = await PDFDocument.load(pdfBytes);
+  let pdfDoc;
+  try {
+    pdfDoc = await PDFDocument.load(pdfBytes);
+  } catch {
+    throw new Error(`${fileItem.file.name} 无法打开，可能是加密或已损坏。`);
+  }
   const pages = pdfDoc.getPages();
+  const pageCheck = window.Validators?.validatePageCount?.(pages.length);
+  if (pageCheck && !pageCheck.valid) {
+    throw new Error(`${fileItem.file.name}：${pageCheck.error}`);
+  }
   const state = getState();
   const {
     sealImageElement: sealImage,
