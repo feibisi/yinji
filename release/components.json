@@ -1,0 +1,8 @@
+[
+  { "name": "fabric", "version": "6.6.1", "license": "MIT", "path": "vendor/fabric.min.js" },
+  { "name": "lucide", "version": "0.469.0", "license": "ISC", "path": "vendor/lucide.min.js" },
+  { "name": "pdf-lib", "version": "1.17.1", "license": "MIT", "path": "vendor/pdf-lib.min.js" },
+  { "name": "pdf.js", "version": "4.10.38", "license": "Apache-2.0", "path": "vendor/pdf.min.mjs" },
+  { "name": "pdf.js-worker", "version": "4.10.38", "license": "Apache-2.0", "path": "vendor/pdf.worker.min.mjs" },
+  { "name": "lookscanned-algorithm", "version": "derived", "license": "MIT", "path": "src/modules/scan-effect.js" }
+]

@@ -1,0 +1,23 @@
+# 印迹（Yinji）
+
+> 莫蒂奇数字技术（苏州）有限公司的本地视觉盖章产品。官方入口：https://yinji.modiqi.com/
+
+印迹在浏览器里给 PDF、PNG、JPG 叠加普通章、骑缝章和手写签名图像。官方站点是产品入口，文件仍在用户本机浏览器中处理，不上传到莫蒂奇服务器加工。
+
+## 产品边界
+
+- 视觉盖章，不是数字证书签名。不验证签署者身份，不宣称法律效力，也不提供文档防篡改。
+- 「扫描件」是视觉模拟效果，不代表文件由真实扫描设备生成。
+- 源码以 MIT 许可证授权；官方不公开免费分发源码下载站，也不把安装包当作赠品提供。合法取得的副本仍按 MIT 使用。
+- Agent / MCP 只适用于本地副本（仓库内 `agent-manifest.json` 与 `tools/ai/yinji-mcp-server.mjs`）。公开网站不提供 MCP，也不会在 yinji.modiqi.com 上自动盖章。
+
+## 页面
+
+- [产品](https://yinji.modiqi.com/)：浏览器内视觉盖章
+- [关于](https://yinji.modiqi.com/about/)：介绍与常见问题
+- [给 Agent](https://yinji.modiqi.com/for-agents/)：公网站无 MCP；本地接入说明
+
+## 运营方
+
+莫蒂奇数字技术（苏州）有限公司
+https://www.modiqi.com/

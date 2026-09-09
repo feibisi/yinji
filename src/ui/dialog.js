@@ -13,6 +13,7 @@
  * @param {boolean} [options.showInput] - 是否显示输入框
  * @param {string} [options.defaultValue] - 输入框默认值
  * @param {string} [options.placeholder] - 输入框占位文字
+ * @param {string} [options.inputType] - text 或 password
  * @param {boolean} [options.danger] - 确认按钮是否为危险样式
  * @returns {Promise<boolean|string|null>}
  */
@@ -24,6 +25,7 @@ function showDialogModal({
   showInput = false,
   defaultValue = "",
   placeholder = "",
+  inputType = "text",
   danger = false,
 }) {
   return new Promise((resolve) => {
@@ -53,7 +55,7 @@ function showDialogModal({
     let inputElement = null;
     if (showInput) {
       inputElement = document.createElement("input");
-      inputElement.type = "text";
+      inputElement.type = inputType === 'password' ? 'password' : 'text';
       inputElement.value = defaultValue;
       inputElement.placeholder = placeholder;
       inputElement.className = "app-dialog-input";

@@ -348,7 +348,7 @@
 
 .export-mode-switch {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.5rem;
   margin-bottom: 1rem;
   padding: 0.375rem;
@@ -373,6 +373,11 @@
 .export-mode-btn:hover {
   background: rgba(255, 255, 255, 0.8);
   color: var(--neutral-800);
+}
+
+.export-mode-btn:focus-visible {
+  outline: 2px solid var(--primary-500);
+  outline-offset: 2px;
 }
 
 .export-mode-btn.active {
@@ -1244,6 +1249,11 @@
   margin-top: 0.25rem;
 }
 
+.loading-cancel-btn {
+  margin-top: 1rem;
+  min-width: 7rem;
+}
+
 @keyframes yinji-loading-spin {
   from {
     transform: rotate(0deg);
@@ -1276,6 +1286,16 @@
   font-weight: 500;
 }
 .toolbar-footer a:hover { text-decoration: underline; }
+
+.toolbar-footer-links {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.toolbar-footer-links a {
+  color: var(--neutral-500);
+}
 
 /* Utility */
 .hidden { display: none !important; }

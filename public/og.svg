@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="ogTitle ogDesc">
+  <title id="ogTitle">印迹 Yinji｜本地视觉盖章</title>
+  <desc id="ogDesc">莫蒂奇数字技术（苏州）有限公司。视觉盖章，不是数字证书签名。</desc>
+  <rect width="1200" height="630" fill="#F4F6F8"/>
+  <defs>
+    <pattern id="dots" width="28" height="28" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.2" fill="#D1D5DB"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="630" fill="url(#dots)"/>
+  <rect x="90" y="90" width="1020" height="450" rx="28" fill="#FFFFFF" stroke="#EEF2F6"/>
+  <g transform="translate(170,160)">
+    <path d="M40 20h170l70 70v250H40Z" fill="#E5E7EB"/>
+    <path d="M210 20v54c0 8.8 7.2 16 16 16h54Z" fill="#D1D5DB"/>
+    <rect x="70" y="130" width="160" height="10" rx="5" fill="#F3F4F6"/>
+    <rect x="70" y="156" width="140" height="10" rx="5" fill="#F3F4F6"/>
+    <rect x="70" y="182" width="150" height="10" rx="5" fill="#F3F4F6"/>
+    <circle cx="230" cy="250" r="88" fill="#D32F2F"/>
+    <circle cx="230" cy="250" r="72" fill="none" stroke="#FFFFFF" stroke-width="6"/>
+    <circle cx="230" cy="250" r="48" fill="none" stroke="#FFFFFF" stroke-width="3" opacity="0.7"/>
+  </g>
+  <text x="620" y="250" font-family="ui-sans-serif, system-ui, -apple-system, 'Noto Sans SC', 'PingFang SC', sans-serif" font-size="72" font-weight="700" fill="#111827">印迹</text>
+  <text x="620" y="318" font-family="ui-sans-serif, system-ui, Inter, sans-serif" font-size="40" font-weight="700" fill="#111827">Yinji</text>
+  <text x="620" y="372" font-family="ui-sans-serif, system-ui, 'Noto Sans SC', 'PingFang SC', sans-serif" font-size="24" fill="#4B5563">本地视觉盖章</text>
+  <text x="620" y="460" font-family="ui-sans-serif, system-ui, 'Noto Sans SC', 'PingFang SC', sans-serif" font-size="18" fill="#6B7280">莫蒂奇数字技术（苏州）有限公司</text>
+  <text x="620" y="490" font-family="ui-sans-serif, system-ui, Inter, sans-serif" font-size="18" fill="#111827">yinji.modiqi.com</text>
+</svg>

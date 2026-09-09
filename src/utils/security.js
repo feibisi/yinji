@@ -61,6 +61,25 @@ export function generateSafeExportFilename(
 }
 
 /**
+ * HTML 转义：任何需要把用户可控数据拼进 innerHTML 的地方都必须先过这里。
+ * 当前代码统一用 textContent 渲染不可信数据（安全），此助手作为纵深防御，
+ * 避免未来改用 innerHTML 时遗漏转义（CSP 含 unsafe-inline，注入即可执行）。
+ * @param {string} value
+ * @returns {string}
+ */
+export function escapeHtml(value) {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
  * 初始化安全措施
  * CSP 已在 HTML meta 标签中声明，无需运行时设置
  */

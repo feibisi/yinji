@@ -22,6 +22,18 @@ const SETTINGS_TYPES = Object.freeze(
   )
 );
 
+const SETTINGS_NUMBER_RANGES = Object.freeze({
+  sealSize: [0.05, 1],
+  sealRotation: [-180, 180],
+  sealOpacity: [0.05, 1],
+});
+
+function normalizeNumberSetting(key, value) {
+  const range = SETTINGS_NUMBER_RANGES[key];
+  if (!range) return value;
+  return Math.min(range[1], Math.max(range[0], value));
+}
+
 // ==================== Validation Functions ====================
 
 /**
@@ -55,7 +67,7 @@ function sanitizeSettings(rawSettings) {
 
     if (expectedType === 'number') {
       if (typeof value === 'number' && Number.isFinite(value)) {
-        sanitizedSettings[key] = value;
+        sanitizedSettings[key] = normalizeNumberSetting(key, value);
       }
       return;
     }
@@ -99,7 +111,7 @@ function validateImportedSettings(rawSettings) {
       if (typeof value !== 'number' || !Number.isFinite(value)) {
         throw new Error(`设置项 ${key} 类型无效`);
       }
-      validatedSettings[key] = value;
+      validatedSettings[key] = normalizeNumberSetting(key, value);
       return;
     }
 
@@ -179,6 +191,7 @@ async function resetSettings() {
 
   try {
     localStorage.removeItem(SETTINGS_KEY);
+    window.ScanSettings?.reset?.();
     window.Toast?.success('设置已重置');
     return true;
   } catch (error) {
@@ -192,8 +205,12 @@ async function resetSettings() {
  * Export settings as JSON file
  */
 function exportSettings() {
-  const settings = getSettings();
-  const dataStr = JSON.stringify(settings, null, 2);
+  const payload = {
+    version: 2,
+    settings: getSettings(),
+    scan: window.ScanSettings?.get?.() || null,
+  };
+  const dataStr = JSON.stringify(payload, null, 2);
   const blob = new Blob([dataStr], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
 
@@ -202,7 +219,8 @@ function exportSettings() {
   link.download = 'yinji-settings.json';
   link.click();
 
-  URL.revokeObjectURL(url);
+  // 延迟撤销：部分浏览器在下载真正开始前撤销会导致下载失败
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
   window.Toast?.success('设置已导出');
 }
 
@@ -215,10 +233,16 @@ function importSettings(file) {
 
   reader.onload = (e) => {
     try {
-      const settings = JSON.parse(e.target.result);
-      const mergedSettings = validateImportedSettings(settings);
+      const imported = JSON.parse(e.target.result);
+      const isBundle = isPlainObject(imported) && imported.version === 2;
+      const mergedSettings = validateImportedSettings(
+        isBundle ? imported.settings : imported
+      );
 
       if (saveSettings(mergedSettings)) {
+        if (isBundle && imported.scan !== null && imported.scan !== undefined) {
+          window.ScanSettings?.apply?.(imported.scan);
+        }
         renderSettingsModal();
         window.Toast?.success('设置已导入');
       }

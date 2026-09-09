@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none'"
+    />
+    <title>给 Agent｜印迹 Yinji - 莫蒂奇</title>
+    <meta
+      name="description"
+      content="yinji.modiqi.com 公开网站不提供 MCP，也不会远程自动盖章。Agent 只适用于你自己的本地印迹副本：agent-manifest 与 yinji-mcp-server。"
+    />
+    <meta name="keywords" content="印迹, 视觉盖章, 骑缝章" />
+    <link rel="canonical" href="https://yinji.modiqi.com/for-agents/" />
+    <link rel="alternate" hreflang="zh-CN" href="https://yinji.modiqi.com/for-agents/" />
+    <link rel="alternate" hreflang="x-default" href="https://yinji.modiqi.com/for-agents/" />
+    <link rel="icon" type="image/svg+xml" href="/public/favicon.svg" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:site_name" content="印迹 Yinji" />
+    <meta property="og:title" content="给 Agent｜印迹 Yinji - 莫蒂奇" />
+    <meta
+      property="og:description"
+      content="公开网站无 MCP。Agent 只在本地副本使用 agent-manifest 与 yinji-mcp-server。"
+    />
+    <meta property="og:url" content="https://yinji.modiqi.com/for-agents/" />
+    <meta property="og:image" content="https://yinji.modiqi.com/public/og.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="给 Agent｜印迹 Yinji - 莫蒂奇" />
+    <meta
+      name="twitter:description"
+      content="公开网站无 MCP。Agent 只在本地副本使用 agent-manifest 与 yinji-mcp-server。"
+    />
+    <meta name="twitter:image" content="https://yinji.modiqi.com/public/og.png" />
+    <style>
+      :root {
+        --bg: #f3f4f6;
+        --surface: #ffffff;
+        --text: #1f2937;
+        --muted: #6b7280;
+        --line: #e5e7eb;
+        --primary: #2563eb;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body { height: 100%; }
+      body {
+        font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans SC", "PingFang SC", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.65;
+        min-height: 100vh;
+      }
+      a { color: var(--primary); text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      .wrap {
+        max-width: 680px;
+        margin: 0 auto;
+        padding: 1.5rem 1.25rem 2rem;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 2rem;
+      }
+      .brand { display: flex; align-items: center; gap: 0.75rem; color: inherit; }
+      .brand img { width: 40px; height: 40px; }
+      .brand strong { display: block; font-size: 1.05rem; }
+      .brand span { display: block; font-size: 0.8rem; color: var(--muted); }
+      nav { display: flex; gap: 1rem; font-size: 0.9rem; }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 1.5rem;
+        flex: 1;
+      }
+      h1 { font-size: 1.6rem; letter-spacing: -0.03em; margin-bottom: 0.75rem; }
+      p { margin-bottom: 0.75rem; }
+      ol { padding-left: 1.2rem; margin: 0.5rem 0 1rem; }
+      li { margin: 0.4rem 0; }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.88em;
+        background: #f3f4f6;
+        padding: 0.1em 0.35em;
+        border-radius: 4px;
+      }
+      .warn {
+        margin-top: 1rem;
+        padding: 0.85rem 1rem;
+        border-radius: 12px;
+        background: #fff7ed;
+        color: #9a3412;
+        font-size: 0.92rem;
+      }
+      footer {
+        margin-top: 1.5rem;
+        font-size: 0.85rem;
+        color: var(--muted);
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <a class="brand" href="/">
+          <img src="/public/favicon.svg" alt="" width="40" height="40" />
+          <span>
+            <strong>印迹 Yinji</strong>
+            <span>给 Agent</span>
+          </span>
+        </a>
+        <nav aria-label="站点">
+          <a href="/">产品</a>
+          <a href="/about/">关于</a>
+          <a href="/for-agents/" aria-current="page">给 Agent</a>
+        </nav>
+      </header>
+
+      <main class="card">
+        <h1>公开网站没有 MCP</h1>
+        <p>
+          <a href="https://yinji.modiqi.com/">yinji.modiqi.com</a>
+          只提供人工在浏览器里做视觉盖章。这里没有 MCP 服务，也没有远程自动盖章接口。不要把文件打到本域名，也不要假设本站会执行任务。
+        </p>
+        <p>若你持有一份本地印迹副本：</p>
+        <ol>
+          <li>读仓库根目录的 <code>agent-manifest.json</code>，按其中 <code>transport</code> 在本地启动。</li>
+          <li>stdio 入口是 <code>tools/ai/yinji-mcp-server.mjs</code>。</li>
+          <li>只做视觉盖章与扫描视觉模拟；不要把它当成数字签名服务。</li>
+        </ol>
+        <p class="warn">
+          操作契约、JSON Schema 与外部 sign 流程不在本页提供，只存在于本地仓库。本域名不运行 MCP，也不会自动盖章。
+        </p>
+      </main>
+
+      <footer>
+        <p>莫蒂奇数字技术（苏州）有限公司</p>
+      </footer>
+    </div>
+  </body>
+</html>

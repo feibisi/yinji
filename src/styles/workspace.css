@@ -37,6 +37,14 @@
   padding: 2.25rem;
 }
 
+.drop-zone-boundary {
+  margin-top: 1rem;
+  max-width: 380px;
+  font-size: 0.6875rem;
+  line-height: 1.65;
+  color: var(--neutral-500);
+}
+
 #app.no-pdf-loaded .main-content {
   padding: 2rem;
   align-items: center;
@@ -44,6 +52,8 @@
 
 #app.no-pdf-loaded .drop-zone {
   display: flex;
+  height: auto;
+  max-height: none;
 }
 
 #app.no-pdf-loaded .main-content-footer {

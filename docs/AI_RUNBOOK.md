@@ -18,6 +18,17 @@
    node tools/ai/yinji-cli.mjs state --pdf ./test-fixture.pdf --add-signature-demo
    node tools/ai/yinji-cli.mjs state --tab export --batch-pdf ./test-fixture.pdf --batch-pdf ./test-multi.pdf
    node tools/ai/yinji-cli.mjs state --seal demo --tab export --batch-pdf ./test-fixture.pdf --process-batch
+   node tools/ai/yinji-cli.mjs state --seal demo --tab export --batch-pdf ./test-fixture.pdf --process-batch-scan
+   node tools/ai/yinji-cli.mjs state --pdf ./test-fixture.pdf --tab export --export-mode scan
+   node tools/ai/yinji-cli.mjs scan-check
+   node tools/ai/yinji-cli.mjs inspect --input ./test-fixture.pdf
+   node tools/tests/agent-contract.test.mjs
+   node tools/tests/mcp-smoke.mjs
+   node tools/tests/compatibility-check.mjs
+   node tools/ai/yinji-cli.mjs stamp --pdf ./test-multi.pdf --seal demo --output-dir /tmp/yinji-output
+   node tools/ai/yinji-cli.mjs scan --pdf ./test-multi.pdf --seal demo --output-dir /tmp/yinji-output
+   node tools/ai/yinji-cli.mjs verify --manifest /tmp/yinji-output/test-multi_盖章版.yinji.json
+   node tools/ai/yinji-cli.mjs sign --input /tmp/yinji-output/input.pdf --output /tmp/yinji-output/signed.pdf --sign-command /path/to/signer --dry-run
    node tools/ai/yinji-cli.mjs capture --pdf ./test-fixture.pdf --seal demo --add-seal --output ./ui-check.png
    ```
 
@@ -27,7 +38,9 @@
 - 总入口：`src/main.js`
 - PDF 与画布：`src/modules/pdf-loader.js`、`src/modules/canvas-manager.js`
 - 印章逻辑：`src/modules/stamp-manager.js`
+- 素材处理：`src/modules/seal-image-processing.js`
 - 导出：`src/modules/exporter.js`
+- 证据、模板和保险库：`src/modules/evidence-manifest.js`、`src/modules/stamp-template.js`、`src/modules/seal-vault.js`
 - 设置、印章库、批量：`src/core/settings.js`、`src/core/seal-library.js`、`src/core/batch-processing.js`
 - 样式入口：`src/style.css`
 - 分拆样式：`src/styles/*.css`
@@ -97,9 +110,13 @@
 - `src/modules/batch-operations.js`
 
 浏览器里确认：
+- 顶部直接显示“普通导出 / 扫描件 / 批量处理”三个入口
+- 切到扫描件后，扫描预设与“生成并下载扫描件”按钮直接可见，不再依赖折叠区状态
 - 导出页状态卡显示文件和页数
 - `#export-hint` 有内容
 - 当前文件导出按钮在 PDF 载入后可用
+- 人工界面按按钮语义取得 `.pdf` 或 `.png` 原格式文件；Agent 输出目录中结果与侧车两者齐全，output SHA-256 一致
+- 删除骑缝章任意一页后，全页导出应明确报缺页且不生成产物
 
 通过标准：
 - 当前文件可导出
@@ -110,6 +127,7 @@
 先看：
 - `#batchInput`
 - `#processBatch`
+- `#processBatchScan`
 - `src/core/batch-processing.js`
 
 浏览器里确认：
@@ -121,16 +139,22 @@
 通过标准：
 - 能加入文件
 - 队列数量和状态正确
+- 能批量盖章并按当前扫描、水印和 PDF 信息设置转成图片版 PDF
+- 页码表达式、锚点、偏移、尺寸和不透明度在侧车 operations 中与输入模板一致
+- 处理中可取消，未完成文件仍留在队列
 
 ### 查本地存储
 
 先看：
 - `src/core/settings.js`
 - `src/core/seal-library.js`
+- `src/features/scan-ui.js`
 
 浏览器里确认：
 - `localStorage.getItem('pdf-stamper-settings')`
-- `localStorage.getItem('pdf-stamper-seal-library')`
+- `sessionStorage.getItem('yinji-session-seal-library')`
+- `localStorage.getItem('pdf-stamper-seal-library')` 只用于检查旧版遗留数据和清理提示
+- `localStorage.getItem('yinji-scan-config')`
 
 通过标准：
 - 设置保存后刷新仍在
@@ -143,3 +167,8 @@
    - 单页图片也可以直接传给 `--pdf`，例如 `./ui-main-flow-cleanup.png`
 3. 改了 UI 再补一张 `capture`
 4. 涉及设置、印章库、批量处理时，再用 `state` 命令看关键状态
+5. 涉及扫描件时，跑 `node tools/ai/yinji-cli.mjs scan-check`
+6. 浏览器单元测试打开 `http://127.0.0.1:8123/tests/index.html`，失败数必须为 0
+7. 涉及证据记录时，用系统 `sha256sum` 或 Python `hashlib.sha256` 重算结果文件并对照侧车
+8. 涉及 Agent 协议时，必须跑 contract、MCP smoke 和一个 JSON task；不能只验证 CLI
+9. 候选发布运行两次 `tools/release/build-release.py` 并比较 ZIP SHA-256

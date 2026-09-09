@@ -1,11 +1,13 @@
 /**
  * 响应式布局管理模块
- * 处理移动端适配、触摸手势、布局切换
+ * 处理移动端适配、布局切换
+ *
+ * 注: 印章的触摸拖动/缩放由 fabric.js 画布原生处理。
+ * 早期版本这里有一套自定义 touch 手势，但依赖从未被赋值的 canvasEl._canvas，
+ * 整条链路是死代码，且配套的全文档 MutationObserver 常驻空转，已移除。
  */
 
 let isMobile = false;
-let touchStartX = 0;
-let touchStartY = 0;
 
 /**
  * 检测屏幕宽度并应用响应式布局
@@ -44,99 +46,11 @@ function applyMobileLayout(mobile) {
 }
 
 /**
- * 计算触摸两点间距离
- */
-function getTouchDistance(touch1, touch2) {
-  const dx = touch1.clientX - touch2.clientX;
-  const dy = touch1.clientY - touch2.clientY;
-  return Math.sqrt(dx * dx + dy * dy);
-}
-
-/**
- * 初始化触摸手势支持
- * @param {HTMLElement} canvasEl - 画布元素
- */
-export function initTouchGestures(canvasEl) {
-  if (!canvasEl) return;
-
-  let initialScale = 1;
-  let objectBeingMoved = null;
-
-  canvasEl.addEventListener('touchstart', (e) => {
-    if (e.touches.length === 1) {
-      // 单指触摸：拖动
-      touchStartX = e.touches[0].clientX;
-      touchStartY = e.touches[0].clientY;
-      objectBeingMoved = canvasEl._canvas?.getActiveObject();
-    } else if (e.touches.length === 2) {
-      // 双指触摸：缩放+旋转
-      initialScale = getTouchDistance(e.touches[0], e.touches[1]);
-      e.preventDefault();
-    }
-  }, { passive: false });
-
-  canvasEl.addEventListener('touchmove', (e) => {
-    const canvas = canvasEl._canvas;
-    if (!canvas) return;
-
-    if (e.touches.length === 1) {
-      // 单指拖动：移动选中对象
-      const activeObject = canvas.getActiveObject();
-      if (activeObject && objectBeingMoved) {
-        const dx = e.touches[0].clientX - touchStartX;
-        const dy = e.touches[0].clientY - touchStartY;
-
-        activeObject.set({
-          left: activeObject.left + dx,
-          top: activeObject.top + dy,
-        });
-        canvas.renderAll();
-
-        touchStartX = e.touches[0].clientX;
-        touchStartY = e.touches[0].clientY;
-      }
-    } else if (e.touches.length === 2) {
-      // 双指缩放+旋转
-      e.preventDefault();
-      const currentScale = getTouchDistance(e.touches[0], e.touches[1]);
-      const scaleRatio = currentScale / initialScale;
-
-      const activeObject = canvas.getActiveObject();
-      if (activeObject) {
-        activeObject.set({
-          scaleX: activeObject.scaleX * scaleRatio,
-          scaleY: activeObject.scaleY * scaleRatio,
-        });
-        canvas.renderAll();
-      }
-
-      initialScale = currentScale;
-    }
-  }, { passive: false });
-
-  canvasEl.addEventListener('touchend', (e) => {
-    objectBeingMoved = null;
-  });
-}
-
-/**
  * 初始化响应式布局
  */
 export function initResponsive() {
   detectAndApplyResponsive();
   window.addEventListener('resize', detectAndApplyResponsive);
-
-  // 为所有画布初始化触摸手势
-  const observer = new MutationObserver(() => {
-    document.querySelectorAll('canvas').forEach((canvas) => {
-      if (!canvas._touchInitialized) {
-        initTouchGestures(canvas);
-        canvas._touchInitialized = true;
-      }
-    });
-  });
-
-  observer.observe(document.body, { childList: true, subtree: true });
 }
 
 /**

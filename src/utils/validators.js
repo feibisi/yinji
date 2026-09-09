@@ -18,7 +18,7 @@ const PAGE_LIMITS = {
 const ALLOWED_TYPES = {
   PDF: ['application/pdf'],
   DOCUMENT_IMAGE: ['image/png', 'image/jpeg', 'image/jpg'],
-  IMAGE: ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp', 'image/svg+xml'],
+  IMAGE: ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp'],
 };
 
 function isPdfLikeFile(file) {
@@ -119,7 +119,7 @@ function validateImageFile(file) {
   if (!ALLOWED_TYPES.IMAGE.includes(file.type)) {
     return {
       valid: false,
-      error: '请选择有效的图片文件（PNG、JPG、GIF、WebP、SVG）'
+      error: '请选择有效的图片文件（PNG、JPG、GIF、WebP）'
     };
   }
 

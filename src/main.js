@@ -14,6 +14,7 @@ import {
   deleteSelectedObject,
   toggleLockSelected,
   clearSelectedSeal,
+  updateSelectedSealBrightness,
 } from './modules/stamp-manager.js';
 import { exportPDF, exportCurrentPageAsImage } from './modules/exporter.js';
 import { initResponsive } from './modules/responsive.js';
@@ -38,12 +39,18 @@ import {
   updateSealPreviewBrightness,
 } from './features/seal-tools.js';
 import { setupBatchUI } from './features/batch-ui.js';
+import { setupScanUI } from './features/scan-ui.js';
 import {
   setupSelectionControls,
   syncSelectionCanvasState,
 } from './features/selection-controls.js';
 import { setupContextMenu } from './ui/context-menu.js';
 import { setupToolbarSections } from './ui/toolbar-sections.js';
+import {
+  decryptSealVault,
+  downloadVaultFile,
+  encryptSealVault,
+} from './modules/seal-vault.js';
 
 // ==================== DOM Elements ====================
 
@@ -95,7 +102,7 @@ const precisionCoordinateFields = document.getElementById('precision-coordinate-
 const workflowActions = document.querySelector('.workflow-actions');
 
 const EXPORT_MODE_STORAGE_KEY = 'yinji-export-mode';
-const SAMPLE_PDF_PATH = 'test-fixture.pdf';
+const SAMPLE_PDF_PATH = 'public/sample.pdf';
 
 let lastBatchQueueState = {
   count: 0,
@@ -111,7 +118,7 @@ let currentExportMode = getStoredExportMode();
 function getStoredExportMode() {
   try {
     const savedMode = window.localStorage?.getItem(EXPORT_MODE_STORAGE_KEY);
-    return savedMode === 'batch' ? 'batch' : 'single';
+    return ['single', 'scan', 'batch'].includes(savedMode) ? savedMode : 'single';
   } catch (error) {
     return 'single';
   }
@@ -155,7 +162,7 @@ function switchToolbarTab(targetTab) {
 }
 
 function setExportMode(mode, { save = true } = {}) {
-  currentExportMode = mode === 'batch' ? 'batch' : 'single';
+  currentExportMode = ['single', 'scan', 'batch'].includes(mode) ? mode : 'single';
 
   exportModeButtons.forEach((button) => {
     const isActive = button.dataset.exportMode === currentExportMode;
@@ -295,6 +302,10 @@ function updateWorkflowGuidance({
       } else {
         text = `队列里有 ${lastBatchQueueState.count} 个文件，可以开始批量处理。`;
       }
+    } else if (currentExportMode === 'scan' && !hasPdf) {
+      text = '先去「编辑」打开文件，再回来选择扫描效果。';
+    } else if (currentExportMode === 'scan') {
+      text = '先选扫描预设，需要时打开实时预览，满意后生成扫描件。';
     } else if (!hasPdf) {
       text = '先去「编辑」打开文件。';
     } else if (placedStampCount === 0) {
@@ -369,6 +380,9 @@ async function main() {
 
   // Initialize responsive layout for mobile
   initResponsive();
+
+  // Initialize scan export panel (settings + live preview + export wiring)
+  setupScanUI();
 
   // Initialize virtual scroller for thumbnails (will be activated after PDF load)
   const thumbnailContainer = document.getElementById('thumbnail-container');
@@ -637,6 +651,12 @@ function updateToolbarStatus() {
         : lastBatchQueueState.count > 0
           ? `队列里有 ${lastBatchQueueState.count} 个文件。`
           : '先添加要处理的 PDF。';
+    } else if (currentExportMode === 'scan' && !hasPdf) {
+      exportStatusNote.textContent = '先打开文件，再选择扫描效果。';
+    } else if (currentExportMode === 'scan') {
+      exportStatusNote.textContent = placedStampCount > 0
+        ? `扫描件会包含已放置的 ${placedStampCount} 个对象。`
+        : '可以直接生成扫描件；当前文件还没有盖章。';
     } else if (!hasPdf) {
       exportStatusNote.textContent = '先去「编辑」打开文件。';
     } else if (placedStampCount === 0) {
@@ -905,6 +925,17 @@ function initializeEventListeners() {
     onToolbarStatusChange: updateToolbarStatus,
   });
 
+  // Undo / Redo buttons (disabled 状态由 window.History.updateUndoRedoButtons 维护)
+  const undoBtn = document.getElementById('undoBtn');
+  if (undoBtn) {
+    undoBtn.addEventListener('click', () => window.History.undo());
+  }
+
+  const redoBtn = document.getElementById('redoBtn');
+  if (redoBtn) {
+    redoBtn.addEventListener('click', () => window.History.redo());
+  }
+
   // Help button
   const helpBtn = document.getElementById('helpBtn');
   if (helpBtn) {
@@ -999,14 +1030,28 @@ function initializeEventListeners() {
       setState({ sealBrightness: brightness });
       brightnessValue.textContent = `${brightness}%`;
       updateSealPreviewBrightness(sealPreviewImg);
+      updateSelectedSealBrightness(brightness);
     });
   }
 
   // Remove white background
   if (removeBgBtn) {
-    removeBgBtn.addEventListener('click', () => {
-      removeWhiteBackground(sealPreviewImg);
-      updateToolbarStatus();
+    removeBgBtn.addEventListener('click', async () => {
+      removeBgBtn.disabled = true;
+      try {
+        await removeWhiteBackground(sealPreviewImg);
+        updateToolbarStatus();
+      } finally {
+        removeBgBtn.disabled = false;
+      }
+    });
+  }
+
+  const autoRemoveBackground = document.getElementById('auto-remove-bg');
+  if (autoRemoveBackground) {
+    autoRemoveBackground.checked = getState().autoRemoveSealBackground !== false;
+    autoRemoveBackground.addEventListener('change', () => {
+      setState({ autoRemoveSealBackground: autoRemoveBackground.checked });
     });
   }
 
@@ -1023,6 +1068,76 @@ function initializeEventListeners() {
   }
 
   setupSignatureModal();
+
+  const exportVaultButton = document.getElementById('export-seal-vault');
+  const importVaultButton = document.getElementById('import-seal-vault');
+  const clearLegacyLibraryButton = document.getElementById('clear-legacy-seal-library');
+  const vaultInput = document.getElementById('seal-vault-input');
+  if (exportVaultButton) {
+    exportVaultButton.addEventListener('click', async () => {
+      const seals = window.SealLibrary.getSavedSeals();
+      if (seals.length === 0) {
+        window.Toast.warning('印章库还是空的。');
+        return;
+      }
+      const passphrase = await window.Settings.promptInput({
+        title: '加密备份印章库',
+        message: '输入至少 8 位口令。Yinji 不保存口令，遗忘后无法恢复。',
+        placeholder: '保险库口令',
+        inputType: 'password',
+      });
+      if (!passphrase) return;
+      try {
+        downloadVaultFile(await encryptSealVault(seals, passphrase));
+        window.Toast.success('加密保险库已开始下载。');
+      } catch (error) {
+        window.Toast.error(error.message || '加密备份失败');
+      }
+    });
+  }
+  if (importVaultButton && vaultInput) {
+    importVaultButton.addEventListener('click', () => vaultInput.click());
+    vaultInput.addEventListener('change', async () => {
+      const file = vaultInput.files?.[0];
+      vaultInput.value = '';
+      if (!file) return;
+      const passphrase = await window.Settings.promptInput({
+        title: '恢复加密印章库',
+        message: '输入创建保险库时使用的口令。恢复会替换当前印章库。',
+        placeholder: '保险库口令',
+        inputType: 'password',
+      });
+      if (!passphrase) return;
+      try {
+        const envelope = JSON.parse(await file.text());
+        const seals = await decryptSealVault(envelope, passphrase);
+        const confirmed = await window.Settings.confirmAction({
+          title: '替换当前印章库',
+          message: `保险库包含 ${seals.length} 个印章。确定替换当前印章库吗？`,
+          confirmText: '恢复',
+          danger: true,
+        });
+        if (!confirmed) return;
+        const count = window.SealLibrary.replaceSealLibrary(seals);
+        window.Toast.success(`已恢复 ${count} 个印章。`);
+      } catch (error) {
+        window.Toast.error(error.message || '恢复保险库失败');
+      }
+    });
+  }
+  if (clearLegacyLibraryButton) {
+    clearLegacyLibraryButton.addEventListener('click', async () => {
+      const confirmed = await window.Settings.confirmAction({
+        title: '清除旧版明文印章库',
+        message: '当前会话中的印章不会删除，但关闭浏览器后将消失。请先完成加密备份。',
+        confirmText: '清除旧数据',
+        danger: true,
+      });
+      if (!confirmed) return;
+      window.SealLibrary.clearLegacySealLibrary();
+      window.Toast.success('旧版明文印章库已清除。');
+    });
+  }
 
   // Virtual scroller handles thumbnail rendering automatically
   // No need for manual scroll listeners - handled by initVirtualScroller()
@@ -1069,6 +1184,20 @@ function handlePdfFileWithCallbacks(file) {
  * @param {KeyboardEvent} e
  */
 function handleKeyboardShortcuts(e) {
+  // 焦点在输入控件或正在中文输入时，让位给原生编辑行为，
+  // 否则会出现坐标框 Backspace 误删印章、方向键误移、负号/文本无法输入、Ctrl+C/V/S 被劫持等问题。
+  const target = e.target;
+  const tag = target?.tagName;
+  if (
+    e.isComposing ||
+    tag === 'INPUT' ||
+    tag === 'TEXTAREA' ||
+    tag === 'SELECT' ||
+    target?.isContentEditable
+  ) {
+    return;
+  }
+
   const canvas = getCurrentPageCanvas();
   const activeObject = canvas?.getActiveObject();
 

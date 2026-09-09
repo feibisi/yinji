@@ -1,0 +1,24 @@
+{
+  "schema": "yinji-agent-manifest/v1",
+  "name": "yinji",
+  "title": "Yinji Visual Stamping",
+  "version": "1.3.0-rc.1",
+  "description": "Local-first visual PDF stamping and scan simulation for human and AI agents.",
+  "transport": {
+    "type": "stdio",
+    "command": "node",
+    "args": ["tools/ai/yinji-mcp-server.mjs"]
+  },
+  "taskRunner": {
+    "command": "node",
+    "args": ["tools/ai/yinji-task.mjs", "--task", "<task.json>"],
+    "schema": "schemas/yinji-agent-task-v1.schema.json"
+  },
+  "boundaries": {
+    "localFilesOnly": true,
+    "visualStampOnly": true,
+    "digitalSignatureIncluded": false,
+    "networkUpload": false,
+    "overwriteByDefault": false
+  }
+}

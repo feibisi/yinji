@@ -2,6 +2,12 @@ import { getState, setState } from '../core/state.js';
 import { getCurrentPageCanvas } from './canvas-manager.js';
 import { getCurrentActivePage } from './canvas-manager.js';
 import { loadFabricImage } from '../utils/fabric-helpers.js';
+import {
+  getRotatedSealDataUrl,
+  makeSealToneMatrix,
+  normalizeSealBrightness,
+  removeBackgroundFromSeal,
+} from './seal-image-processing.js';
 
 /**
  * 印章管理模块
@@ -49,7 +55,7 @@ function updateSealPreview(src) {
 export function clearSelectedSeal({
   silent = false,
 } = {}) {
-  setSealImageElement(null);
+  setState({ sealImageElement: null, sealOriginalImageSrc: '' });
   updateSealPreview('');
 
   if (!silent) {
@@ -88,38 +94,79 @@ export function getSealBrightness() {
  * @returns {string}
  */
 export function getRotatedCroppedImage(sourceImage, angle, brightness = 100) {
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-  const w = sourceImage.width;
-  const h = sourceImage.height;
+  return getRotatedSealDataUrl(sourceImage, angle, brightness);
+}
 
-  const diagonal = Math.sqrt(w * w + h * h);
-  canvas.width = diagonal;
-  canvas.height = diagonal;
+export function applyBrightnessToFabricImage(image, brightness) {
+  if (!image || typeof image.applyFilters !== 'function') return;
+  image.filters = [
+    new window.fabric.filters.ColorMatrix({
+      matrix: makeSealToneMatrix(brightness),
+      // Fabric 6 默认 colorsOnly=true，会完全忽略矩阵中的 Alpha 行。
+      // 调浅依赖降低印泥密度，因此必须显式允许处理 Alpha。
+      colorsOnly: false,
+    }),
+  ];
+  image.yinjiBrightness = normalizeSealBrightness(brightness);
+  image.applyFilters();
+  image.setCoords();
+}
 
-  ctx.translate(diagonal / 2, diagonal / 2);
-  ctx.rotate((angle * Math.PI) / 180);
-  ctx.drawImage(sourceImage, -w / 2, -h / 2);
+/** 实时更新当前选中普通章或整组骑缝章的亮度。 */
+export function updateSelectedSealBrightness(brightness) {
+  const canvas = getCurrentPageCanvas();
+  const activeObject = canvas?.getActiveObject?.();
+  if (!activeObject || activeObject.isLocked) return false;
 
-  const finalCanvas = document.createElement('canvas');
-  finalCanvas.width = w;
-  finalCanvas.height = h;
-  const finalCtx = finalCanvas.getContext('2d');
+  const groupId = activeObject.straddleGroup;
+  if (groupId) {
+    getState().fabricCanvases.forEach((pageCanvas) => {
+      if (!pageCanvas) return;
+      pageCanvas
+        .getObjects()
+        .filter((object) => object.straddleGroup === groupId)
+        .forEach((object) => applyBrightnessToFabricImage(object, brightness));
+      pageCanvas.requestRenderAll();
+    });
+    return true;
+  }
 
-  finalCtx.filter = `brightness(${brightness / 100})`;
-  finalCtx.drawImage(
-    canvas,
-    (diagonal - w) / 2,
-    (diagonal - h) / 2,
-    w,
-    h,
-    0,
-    0,
-    w,
-    h
-  );
+  if (!['normal', 'stamp'].includes(activeObject.yinjiKind)) return false;
 
-  return finalCanvas.toDataURL();
+  applyBrightnessToFabricImage(activeObject, brightness);
+  canvas.requestRenderAll();
+  return true;
+}
+
+/** 用当前素材替换已选普通章，保持页面上的显示宽度和中心位置。 */
+export async function updateSelectedNormalSealSource(source) {
+  const canvas = getCurrentPageCanvas();
+  const activeObject = canvas?.getActiveObject?.();
+  if (
+    !activeObject ||
+    activeObject.isLocked ||
+    activeObject.straddleGroup ||
+    !['normal', 'stamp'].includes(activeObject.yinjiKind)
+  ) {
+    return false;
+  }
+
+  const sourceImage = new Image();
+  await new Promise((resolve, reject) => {
+    sourceImage.onload = resolve;
+    sourceImage.onerror = () => reject(new Error('处理后的印章图片无法读取'));
+    sourceImage.src = typeof source === 'string' ? source : source?.src || '';
+  });
+
+  const displayWidth = activeObject.getScaledWidth();
+  const rotated = getRotatedCroppedImage(sourceImage, getSealRotation(), 100);
+  await activeObject.setSrc(rotated);
+  activeObject.scaleToWidth(displayWidth);
+  activeObject.yinjiKind = 'normal';
+  applyBrightnessToFabricImage(activeObject, getSealBrightness());
+  canvas.setActiveObject(activeObject);
+  canvas.requestRenderAll();
+  return true;
 }
 
 /**
@@ -134,25 +181,46 @@ export function handleSealFile(file) {
   }
 
   const reader = new FileReader();
-  reader.onload = function (event) {
-    const sealImageElement = new Image();
-    sealImageElement.src = event.target.result;
-    setSealImageElement(sealImageElement);
-    updateSealPreview(event.target.result);
-
-    sealImageElement.onload = () => {
+  reader.onload = async function (event) {
+    const originalSrc = event.target.result;
+    const originalImage = new Image();
+    originalImage.onload = async () => {
       const dimValidation = window.Validators.validateImageDimensions(
-        sealImageElement
+        originalImage
       );
       if (!dimValidation.valid) {
         window.Toast.error(dimValidation.error);
         clearSelectedSeal({ silent: true });
         return;
       }
-      window.Toast.success(
-        `${file.name} 已选好。现在可以盖普通章，或打开手写签名。`
-      );
+      let processedSrc = originalSrc;
+      const shouldRemove = document.getElementById('auto-remove-bg')?.checked !== false;
+      if (shouldRemove) {
+        try {
+          const result = await removeBackgroundFromSeal(originalSrc);
+          processedSrc = result.dataUrl;
+        } catch (error) {
+          console.warn('自动去白底失败，继续使用原图:', error);
+        }
+      }
+
+      const sealImageElement = new Image();
+      sealImageElement.onload = () => {
+        setState({
+          sealImageElement,
+          sealOriginalImageSrc: originalSrc,
+          autoRemoveSealBackground: shouldRemove,
+        });
+        updateSealPreview(processedSrc);
+        window.Toast.success(
+          `${file.name} 已选好${shouldRemove ? '，已自动处理边缘白底' : ''}。`
+        );
+      };
+      sealImageElement.onerror = () => window.Toast.error('处理后的印章图片无法读取。');
+      sealImageElement.src = processedSrc;
     };
+    originalImage.onerror = () => window.Toast.error('无法读取此印章图片。');
+    originalImage.src = originalSrc;
   };
 
   reader.readAsDataURL(file);
@@ -183,7 +251,7 @@ export function addNormalSeal() {
     const rotatedSealUrl = getRotatedCroppedImage(
       imageToProcess,
       getSealRotation(),
-      getSealBrightness()
+      100
     );
 
     try {
@@ -205,7 +273,10 @@ export function addNormalSeal() {
         lockRotation: true,
         angle: 0,
         opacity: settings.sealOpacity,
+        yinjiKind: 'normal',
+        yinjiRotation: getSealRotation(),
       });
+      applyBrightnessToFabricImage(img, getSealBrightness());
 
       const command = new window.History.AddSealCommand(
         getCurrentActivePage(),
@@ -251,14 +322,16 @@ export async function addStraddleSeal() {
     const rotatedSealUrl = getRotatedCroppedImage(
       imageToProcess,
       getSealRotation(),
-      getSealBrightness()
+      100
     );
     const rotatedSealImage = new Image();
     rotatedSealImage.src = rotatedSealUrl;
 
     rotatedSealImage.onload = async () => {
       const totalPages = pdfDoc.numPages;
-      const pieceWidth = sealImageElement.width / totalPages;
+      const rotatedWidth = rotatedSealImage.naturalWidth || rotatedSealImage.width;
+      const rotatedHeight = rotatedSealImage.naturalHeight || rotatedSealImage.height;
+      const pieceWidth = rotatedWidth / totalPages;
       const groupId = `straddle-${Date.now()}`;
       const entries = [];
 
@@ -271,11 +344,11 @@ export async function addStraddleSeal() {
 
         const settings = window.Settings.getSettings();
         const initialScale =
-          (canvas.originalWidth * settings.sealSize) / sealImageElement.width;
+          (canvas.originalWidth * settings.sealSize) / rotatedWidth;
 
         const tempPieceCanvas = document.createElement('canvas');
         tempPieceCanvas.width = pieceWidth;
-        tempPieceCanvas.height = sealImageElement.height;
+        tempPieceCanvas.height = rotatedHeight;
 
         tempPieceCanvas
           .getContext('2d')
@@ -284,21 +357,28 @@ export async function addStraddleSeal() {
             i * pieceWidth,
             0,
             pieceWidth,
-            sealImageElement.height,
+            rotatedHeight,
             0,
             0,
             pieceWidth,
-            sealImageElement.height
+            rotatedHeight
           );
 
         try {
           const imgPiece = await loadFabricImage(tempPieceCanvas.toDataURL());
           imgPiece.scale(initialScale);
           const scaledPieceWidth = pieceWidth * initialScale;
+          const scaledPieceHeight = rotatedHeight * initialScale;
+          // 按页面实际高度垂直居中，替换硬编码 top:400，
+          // 避免固定像素在小页面出界或不同尺寸页位置不一致。
+          const straddleTop = Math.max(
+            0,
+            (canvas.originalHeight - scaledPieceHeight) / 2
+          );
 
           imgPiece.set({
             left: canvas.originalWidth - scaledPieceWidth,
-            top: 400,
+            top: straddleTop,
             hasControls: true,
             borderColor: '#007bff',
             lockMovementX: true,
@@ -309,7 +389,10 @@ export async function addStraddleSeal() {
             originY: 'top',
             angle: 0,
             opacity: settings.sealOpacity,
+            yinjiKind: 'straddle',
+            yinjiRotation: getSealRotation(),
           });
+          applyBrightnessToFabricImage(imgPiece, getSealBrightness());
 
           const syncObjects = (target) => {
             getFabricCanvases()

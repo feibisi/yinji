@@ -2,6 +2,11 @@ import { getState, setState } from '../core/state.js';
 import { getCurrentPageCanvas } from './canvas-manager.js';
 import { loadFabricImage } from '../utils/fabric-helpers.js';
 import { drawCanvasObjectsToPdfPage } from './exporter.js';
+import {
+  collectStampOperations,
+  downloadExportArtifacts,
+} from './evidence-manifest.js';
+import { findIncompleteStraddleGroups } from './stamp-template.js';
 
 /**
  * 批量操作模块
@@ -9,15 +14,6 @@ import { drawCanvasObjectsToPdfPage } from './exporter.js';
  */
 
 
-
-function triggerPdfDownload(bytes, filename) {
-  const blob = new Blob([bytes], { type: 'application/pdf' });
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(link.href);
-}
 
 /**
  * 切换页面选中状态（Ctrl+Click 单个选择）
@@ -245,7 +241,10 @@ export async function addSealToSelectedPages(sealImageElement, settings) {
 
   try {
     const { initializeFabricCanvasForPage } = await import('./canvas-manager.js');
-    const { getRotatedCroppedImage } = await import('./stamp-manager.js');
+    const {
+      applyBrightnessToFabricImage,
+      getRotatedCroppedImage,
+    } = await import('./stamp-manager.js');
 
     // 处理印章图片（旋转和亮度调整）
     const imageToProcess = new Image();
@@ -259,7 +258,7 @@ export async function addSealToSelectedPages(sealImageElement, settings) {
     const rotatedSealUrl = getRotatedCroppedImage(
       imageToProcess,
       getState().sealRotation,
-      getState().sealBrightness
+      100
     );
 
     const pages = Array.from(selectedPages).sort((a, b) => a - b);
@@ -292,7 +291,10 @@ export async function addSealToSelectedPages(sealImageElement, settings) {
         lockRotation: true,
         angle: 0,
         opacity: settings.sealOpacity,
+        yinjiKind: 'stamp',
+        yinjiBrightness: getState().sealBrightness,
       });
+      applyBrightnessToFabricImage(img, getState().sealBrightness);
 
       entries.push({ pageNum, sealObject: img });
     }
@@ -379,6 +381,7 @@ export async function exportSelectedPages(originalFile, exportMode = 'selected')
   const selectedPages = getState().selectedPages;
   const pdfDoc = getState().pdfDoc;
   const originalPdfBytes = getState().originalPdfBytes;
+  const sourceBytes = getState().originalSourceBytes || originalPdfBytes;
   const sourcePdfFile = originalFile || getState().currentPdfFile;
 
   if (!pdfDoc || !originalPdfBytes) {
@@ -408,6 +411,13 @@ export async function exportSelectedPages(originalFile, exportMode = 'selected')
 
   try {
     const { PDFDocument } = window.PDFLib;
+    const allOperations = collectStampOperations(getState().fabricCanvases);
+    if (exportMode === 'all' || exportMode === 'split') {
+      const incomplete = findIncompleteStraddleGroups(allOperations, pdfDoc.numPages);
+      if (incomplete.length > 0) {
+        throw new Error(`骑缝章未覆盖全部页面：缺第 ${incomplete[0].missingPages.join('、')} 页`);
+      }
+    }
 
     // Load PDF with PDFLib (pdfDoc from state is PDF.js PDFDocumentProxy)
     const pdfLibDoc = await PDFDocument.load(originalPdfBytes);
@@ -432,14 +442,24 @@ export async function exportSelectedPages(originalFile, exportMode = 'selected')
         }
 
         const bytes = await newPdf.save();
-        triggerPdfDownload(bytes, `${baseName}_page${pageNum}.pdf`);
+        const filename = `${baseName}_page${pageNum}.pdf`;
+        await downloadExportArtifacts({
+          sourceFile: sourcePdfFile,
+          sourceBytes,
+          outputBytes: bytes,
+          outputFilename: filename,
+          mode: 'split-page-visual-stamp',
+          pageCount: 1,
+          operations: allOperations.filter((operation) => operation.page === pageNum),
+          settings: { sourcePage: pageNum },
+        });
 
         window.Loading.updateProgress(
           ((i + 1) / pagesToExport.length) * 100,
           `导出第 ${i + 1}/${pagesToExport.length} 页`
         );
       }
-      window.Toast.success(`已开始下载 ${pagesToExport.length} 个独立文件。`);
+      window.Toast.success(`已开始下载 ${pagesToExport.length} 个独立 PDF 文件。`);
     } else {
       // 合并导出为一个 PDF（含 Fabric.js 印章渲染）
       const newPdf = await PDFDocument.create();
@@ -469,8 +489,17 @@ export async function exportSelectedPages(originalFile, exportMode = 'selected')
       const filename = generateSafeExportFilename(sourcePdfFile, suffix);
 
       window.Loading.updateProgress(100, '完成！');
-      triggerPdfDownload(bytes, filename);
-      window.Toast.success(`已开始下载 ${pagesToExport.length} 页。`);
+      await downloadExportArtifacts({
+        sourceFile: sourcePdfFile,
+        sourceBytes,
+        outputBytes: bytes,
+        outputFilename: filename,
+        mode: exportMode === 'selected' ? 'selected-pages-visual-stamp' : 'visual-stamp',
+        pageCount: pagesToExport.length,
+        operations: allOperations.filter((operation) => pagesToExport.includes(operation.page)),
+        settings: { sourcePages: pagesToExport },
+      });
+      window.Toast.success(`已开始下载包含 ${pagesToExport.length} 页的 PDF 文件。`);
     }
 
     window.Loading.hide();

@@ -5,6 +5,51 @@ All notable changes to PDF Stamper will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-09-09
+
+### Added
+- 根目录 MIT `LICENSE`；官方产品入口 `https://yinji.modiqi.com/`
+- `version.json` 版本 `1.3.0`，`canonicalUrl` 指向官方站点
+- `LICENSE-STATUS.md`：MIT 适用于合法取得的副本；官方不公开免费分发源码包或安装包
+
+### Changed
+- 人工导出保持 PDF/PNG 原格式；`.yinji.json` 仅由 Agent 写出
+- 稳定版不再因缺少 `LICENSE` 阻塞发布构建
+- 旋转导出 `getRotatedSealDataUrl` 的深浅烘焙与界面滑块同一套处理
+
+### Notes
+- 视觉盖章，不是数字证书签名；扫描件是视觉模拟
+- Windows 11 仍未做实机认证，不得对外写成已认证
+- OSS 稍后由 modiqi 在阿里云开通；CDN/DNS 由 DevOps 配合；禁止部署进 weixiaoduo-prod WordPress
+
+## [Unreleased] - 2026-08-09
+
+### Added
+- MCP 2025-11-25 stdio server、`yinji-agent-task/v1` JSON 任务入口和便携 Agent skill
+- `inspect` 输入预检，拒绝加密、损坏、超限 PDF 和伪造印章格式
+- Agent 模板支持旋转、深浅和自动去背景
+- `version.json`、确定性候选包、发布 manifest、CycloneDX SBOM 和兼容性报告
+- 自适应纸张底色清除，支持米白、浅灰扫描底色、封闭区域和抗锯齿边缘，并保留原始素材
+- 导出 PDF 的 `yinji-evidence/v1` SHA-256 证据记录
+- `yinji-stamp-template/v1` 批量页码、位置、偏移、尺寸和透明度模板
+- 骑缝章导出前完整页覆盖校验
+- PBKDF2 + AES-GCM 加密印章库备份和恢复
+- `stamp` CLI 以及隔离的外部 `sign` 命令契约
+- `scan`、`verify`、`doctor`、`capabilities` Agent 命令及 `yinji-agent-result/v1`
+- Agent CLI 输出结果文件与同名 `.yinji.json` 校验记录
+
+### Fixed
+- 人工下载恢复 PDF/PNG 原格式，不再把所有导出结果强制包装成 `.yinji.zip`
+- 印章深浅低值不再将彩色印章压黑；调浅改为降低印泥密度，调深限制最大暗化幅度
+- 深浅滑块现在立即更新已放置的普通章或整组骑缝章
+- 非直角旋转长方形印章/签名不再被原画布边界裁切
+- 印章库恢复后正确保留数值 0，损坏图像不会提前替换预览
+- 设置导入和持久化会限制尺寸、旋转和透明度范围
+
+### Security
+- 新保存的印章改为 sessionStorage；旧 localStorage 只迁入会话并由用户主动清理
+- 浏览器端明确拒绝证书和私钥材料，数字签名只允许外部程序契约
+
 ## [1.2.0] - 2026-01-09
 
 ### Added

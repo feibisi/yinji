@@ -24,9 +24,12 @@ export function runStateTests() {
   assert(results, typeof state === 'object', 'getState returns object');
   assert(results, state.pdfDoc === null, 'initial pdfDoc is null');
   assert(results, state.originalPdfBytes === null, 'initial originalPdfBytes is null');
+  assert(results, state.originalSourceBytes === null, 'initial originalSourceBytes is null');
   assert(results, Array.isArray(state.fabricCanvases), 'fabricCanvases is array');
   assert(results, state.fabricCanvases.length === 0, 'fabricCanvases is empty');
   assert(results, state.sealImageElement === null, 'initial sealImageElement is null');
+  assert(results, state.sealOriginalImageSrc === '', 'initial original seal source is empty');
+  assert(results, state.autoRemoveSealBackground === true, 'auto background removal defaults to enabled');
   assert(results, state.currentActivePage === 1, 'initial currentActivePage is 1');
   assert(results, state.totalPages === 0, 'initial totalPages is 0');
   assert(results, Array.isArray(state.pageFitScales), 'pageFitScales is array');
