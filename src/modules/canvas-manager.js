@@ -195,10 +195,24 @@ export async function initializeFabricCanvasForPage(
   return fabricCanvas;
 }
 
+let zoomFrame = 0;
+let pendingZoomOpts = null;
+
 /**
- * 应用缩放设置到当前页面画布
+ * 应用缩放。交互中只改 CSS scale，不重分配 Fabric 位图，避免滑条/滚轮卡顿。
  */
-export function applyZoom({ clientX = null, clientY = null } = {}) {
+export function applyZoom(opts = {}) {
+  pendingZoomOpts = opts;
+  if (zoomFrame) return;
+  zoomFrame = requestAnimationFrame(() => {
+    zoomFrame = 0;
+    const next = pendingZoomOpts || {};
+    pendingZoomOpts = null;
+    applyZoomNow(next);
+  });
+}
+
+function applyZoomNow({ clientX = null, clientY = null } = {}) {
   const pdfDoc = getState().pdfDoc;
   if (!pdfDoc) return;
 
@@ -231,38 +245,50 @@ export function applyZoom({ clientX = null, clientY = null } = {}) {
 
   const zoomValue = document.getElementById('zoom-value');
   if (zoomValue) {
-    zoomValue.textContent = `${Math.round(zoomMultiplier * 100)}% (Fit-Width)`;
+    zoomValue.textContent = `${Math.round(zoomMultiplier * 100)}%`;
   }
 
-  if (canvas) {
-    const pageFitScales = getPageFitScalesSafe();
-    const fitScale = pageFitScales[currentPage - 1] || 1;
-    const newZoom = fitScale * zoomMultiplier;
+  if (!canvas || !canvas.originalWidth) return;
 
-    canvas.setZoom(newZoom);
-    canvas.setDimensions({
-      width: canvas.originalWidth * newZoom,
-      height: canvas.originalHeight * newZoom,
-    });
+  const pageFitScales = getPageFitScalesSafe();
+  const fitScale = pageFitScales[currentPage - 1] || 1;
+  const baseW = canvas.originalWidth * fitScale;
+  const baseH = canvas.originalHeight * fitScale;
+  const bufferW = Math.max(1, Math.round(baseW));
+  const bufferH = Math.max(1, Math.round(baseH));
 
-    canvas.renderAll();
+  if (
+    Math.abs(canvas.getZoom() - fitScale) > 1e-6 ||
+    canvas.lowerCanvasEl.width !== bufferW ||
+    canvas.lowerCanvasEl.height !== bufferH
+  ) {
+    canvas.setZoom(fitScale);
+    canvas.setDimensions({ width: bufferW, height: bufferH });
+  }
 
-    if (focusState) {
-      requestAnimationFrame(() => {
-        const mainRect = mainContent.getBoundingClientRect();
-        const wrapperRect = wrapper.getBoundingClientRect();
+  const stage = canvas.wrapperEl;
+  if (stage) {
+    stage.style.transformOrigin = '0 0';
+    stage.style.transform =
+      Math.abs(zoomMultiplier - 1) < 1e-6 ? '' : `scale(${zoomMultiplier})`;
+  }
 
-        const wrapperLeft =
-          mainContent.scrollLeft + wrapperRect.left - mainRect.left;
-        const wrapperTop =
-          mainContent.scrollTop + wrapperRect.top - mainRect.top;
+  if (wrapper) {
+    wrapper.style.width = `${baseW * zoomMultiplier}px`;
+    wrapper.style.height = `${baseH * zoomMultiplier}px`;
+  }
 
-        mainContent.scrollLeft =
-          wrapperLeft + wrapperRect.width * focusState.relativeX - focusState.offsetX;
-        mainContent.scrollTop =
-          wrapperTop + wrapperRect.height * focusState.relativeY - focusState.offsetY;
-      });
-    }
+  if (focusState) {
+    const mainRect = mainContent.getBoundingClientRect();
+    const wrapperRect = wrapper.getBoundingClientRect();
+    const wrapperLeft =
+      mainContent.scrollLeft + wrapperRect.left - mainRect.left;
+    const wrapperTop =
+      mainContent.scrollTop + wrapperRect.top - mainRect.top;
+    mainContent.scrollLeft =
+      wrapperLeft + wrapperRect.width * focusState.relativeX - focusState.offsetX;
+    mainContent.scrollTop =
+      wrapperTop + wrapperRect.height * focusState.relativeY - focusState.offsetY;
   }
 }
 
