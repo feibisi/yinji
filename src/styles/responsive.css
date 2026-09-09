@@ -15,19 +15,51 @@
   #app.sidebar-collapsed {
     grid-template-columns: 1fr;
     grid-template-areas:
-      "toolbar"
+      "brand"
       "main"
-      "sidebar";
+      "sidebar"
+      "tabs"
+      "tools"
+      "foot";
     height: auto;
     min-height: 100vh;
     gap: 12px;
     padding: 12px;
   }
 
+  #app.no-pdf-loaded,
+  #app.no-pdf-loaded.sidebar-collapsed {
+    grid-template-areas:
+      "brand"
+      "main"
+      "tabs"
+      "tools"
+      "foot";
+  }
+
   .toolbar {
-    grid-area: toolbar;
-    height: auto;
-    min-height: 0;
+    display: contents;
+  }
+
+  .toolbar-header {
+    grid-area: brand;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+  }
+
+  .tab-navigation {
+    grid-area: tabs;
+  }
+
+  .tab-content-wrapper {
+    grid-area: tools;
+  }
+
+  .toolbar-footer {
+    grid-area: foot;
   }
 
   .main-content-wrapper {
@@ -49,16 +81,9 @@
     display: none;
   }
 
-  .sidebar-collapsed-panel {
+  .sidebar-collapsed-panel,
+  #sidebar-toggle {
     display: none !important;
-  }
-
-  .toolbar-header {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    padding: 0.75rem 1rem;
   }
 
   .header-actions {

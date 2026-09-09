@@ -13,12 +13,12 @@ export function sanitizeFilename(filename) {
     return 'document';
   }
 
-  // 移除路径遍历字符、空字节、特殊字符
-  let safe = filename
-    .replace(/\.\./g, '')  // 防止 ../../ 路径遍历
-    .replace(/[<>:"|?*\\]/g, '')  // 移除 Windows 非法字符
-    .replace(/\0/g, '')  // 移除空字节
-    .replace(/[^\x20-\x7E\u4e00-\u9fa5]/g, ''); // 只保留可打印字符+中文
+  const base = filename.split(/[/\\]/).filter(Boolean).pop() || filename;
+  let safe = base
+    .replace(/\.\./g, '')
+    .replace(/[<>:"|?*/\\]/g, '')
+    .replace(/\0/g, '')
+    .replace(/[^\x20-\x7E\u4e00-\u9fa5]/g, '');
 
   // 限制长度
   if (safe.length > 100) {

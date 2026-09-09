@@ -187,12 +187,14 @@ export function handleSealFile(file) {
       }
       let processedSrc = originalSrc;
       const shouldRemove = document.getElementById('auto-remove-bg')?.checked !== false;
+      let backgroundFailed = false;
       if (shouldRemove) {
         try {
           const result = await removeBackgroundFromSeal(originalSrc);
           processedSrc = result.dataUrl;
         } catch (error) {
           console.warn('自动去白底失败，继续使用原图:', error);
+          backgroundFailed = true;
         }
       }
 
@@ -201,12 +203,16 @@ export function handleSealFile(file) {
         setState({
           sealImageElement,
           sealOriginalImageSrc: originalSrc,
-          autoRemoveSealBackground: shouldRemove,
+          autoRemoveSealBackground: shouldRemove && !backgroundFailed,
         });
         updateSealPreview(processedSrc);
-        window.Toast.success(
-          `${file.name} 已选好${shouldRemove ? '，已自动处理边缘白底' : ''}。`
-        );
+        if (backgroundFailed) {
+          window.Toast.warning(`${file.name} 已选好，去底失败，仍用原图。`);
+        } else {
+          window.Toast.success(
+            `${file.name} 已选好${shouldRemove ? '，已处理纸张底色' : ''}。`
+          );
+        }
       };
       sealImageElement.onerror = () => window.Toast.error('处理后的印章图片无法读取。');
       sealImageElement.src = processedSrc;
@@ -329,10 +335,14 @@ export async function addStraddleSeal() {
 
       const { getFabricCanvases, initializeFabricCanvasForPage } = await import('./canvas-manager.js');
 
+      const missingPages = [];
       for (let i = 0; i < totalPages; i++) {
         const pageNum = i + 1;
         const canvas = await initializeFabricCanvasForPage(pageNum);
-        if (!canvas) continue;
+        if (!canvas) {
+          missingPages.push(pageNum);
+          continue;
+        }
 
         const settings = window.Settings.getSettings();
         const initialScale =
@@ -412,11 +422,19 @@ export async function addStraddleSeal() {
           entries.push({ pageNum, sealObject: imgPiece });
         } catch (error) {
           console.error(`骑缝章第 ${pageNum} 页加载失败:`, error);
+          missingPages.push(pageNum);
         }
       }
 
       if (entries.length === 0) {
         window.Toast.error('骑缝章没做成，再试一次。');
+        return;
+      }
+
+      if (missingPages.length > 0 || entries.length !== totalPages) {
+        window.Toast.error(
+          `骑缝章未盖全（${entries.length}/${totalPages} 页），缺第 ${missingPages.join('、') || '未知'} 页。未放置不完整骑缝章。`
+        );
         return;
       }
 

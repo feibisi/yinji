@@ -251,8 +251,7 @@ export async function buildScannedPdfBytes({
       const page = outputDoc.addPage([width, height]);
 
       if (!scannedDataUrl) {
-        // 初始化后仍拿不到画布: 保留空白页维持页数一致, 但必须留痕
-        console.warn(`第 ${pageNum} 页画布不可用, 已输出为空白页`);
+        console.warn(`第 ${pageNum} 页画布不可用`);
         blankPages.push(pageNum);
         continue;
       }
@@ -282,8 +281,8 @@ export async function buildScannedPdfBytes({
   // Producer/Creator/CreationDate/ModificationDate 全部缺失, 无需再置空字符串中和。
 
   if (blankPages.length > 0) {
-    window.Toast?.warning?.(
-      `有 ${blankPages.length} 页未能渲染，已输出为空白页：第 ${blankPages.join('、')} 页。`
+    throw new Error(
+      `有 ${blankPages.length} 页未能渲染（第 ${blankPages.join('、')} 页），未生成文件。`
     );
   }
 
