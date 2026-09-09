@@ -69,3 +69,14 @@
 - Windows 11 仍未实机认证，不得写成已认证。
 - 文档已按上述政策改 README、用户指南、兼容性门禁、CHANGELOG、DEPLOY；发布白名单加入 `LICENSE`。`src/` 业务代码本次未改。
 - 旋转导出 `getRotatedSealDataUrl` 的深浅烘焙与界面滑块同一套处理（代码由并行代理改）。
+
+## 2026-09-09 - [Grok] 后续版本与当前上线范围
+
+- 当前上线：官方静态站给人用界面；盖章在访客浏览器里算。Agent 用本机 CLI / stdio MCP，文件走本机路径。
+- 后续迭代才考虑对外收费服务。收费若仍是「网页当产品、处理在端上」，可加账号和档位。若改成「文件传到服务器代管盖章」，另做服务端，不塞进现在的静态站。
+- Web MCP 若做，只绑本机 `127.0.0.1`，不上 `yinji.modiqi.com`。
+
+## 2026-09-09 - [Grok] 预览缩放改 CSS scale
+
+- 原先 `applyZoom` 每次 `setZoom` + `setDimensions` + `renderAll`，滑条和 Ctrl+滚轮会重分配整页位图，卡。
+- 现改为 Fabric 保持适配宽度的位图，用户缩放只 `scale()` 外层，并用 rAF 合并一帧一次。
