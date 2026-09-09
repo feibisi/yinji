@@ -2,7 +2,7 @@
 
 > 这份文档保留旧版对外介绍。当前开发、运行和验证说明看仓库根目录 `README.md`。
 
-PDF Stamper 是一个免费、开源的纯前端 PDF 盖章应用。它允许用户在浏览器中为 PDF 文件添加普通印章和骑缝章，所有操作均在本地完成，确保了用户的数据隐私和安全。
+PDF Stamper 是一个纯前端 PDF 盖章应用。它允许用户在浏览器中为 PDF 文件添加普通印章和骑缝章，所有操作均在本地完成，确保了用户的数据隐私和安全。当前产品入口是 `https://yinji.modiqi.com/`。软件许可证为 MIT，但不等于官方公开免费分发；政策见仓库根目录 `LICENSE` 与 `LICENSE-STATUS.md`。
 
 
 ## ✨ 主要功能
@@ -134,4 +134,4 @@ Cloudflare将自动完成构建和部署，并为您提供一个 `*.pages.dev` �
 
 ## 📄 许可
 
-本项目采用 [MIT License](LICENSE.txt) 开源许可。
+软件许可证为 MIT，正文见仓库根目录 [`LICENSE`](../LICENSE)。官方不公开免费分发源码包或安装包；政策见 [`LICENSE-STATUS.md`](../LICENSE-STATUS.md)。第三方组件见 `THIRD_PARTY_NOTICES.md` 与 `licenses/`。

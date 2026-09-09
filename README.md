@@ -6,20 +6,21 @@
 
 常用印章默认只写入当前浏览器会话；关闭整个浏览器后消失。长期保存或迁移使用口令加密的印章库备份。
 
-人工导出下载单个 `.yinji.zip` 证据包，内含结果文件和 `.yinji.json`；Agent CLI 则把两者分别写入输出目录。记录包含输入/输出 SHA-256 和盖章操作摘要，但不等同于数字证书签名。
+人工导出按结果原格式下载：PDF 为 `.pdf`，图片为 `.png`。Agent 才会在输出目录写入同名 `.yinji.json`。记录包含输入/输出 SHA-256 和盖章操作摘要，但不等同于数字证书签名。
 
 导出页提供三个一级入口：**普通导出、扫描件、批量处理**。扫描件不再隐藏在普通导出的折叠区中。
 
 ## 本地运行
 
+纯前端静态应用。本地调试开静态服务即可，开发机自选端口。例如：
+
 ```bash
-cd /home/parallels/Projects/yinji
-python3 -m http.server 8123
+python3 -m http.server
 ```
 
-打开 `http://127.0.0.1:8123/index.html`。
+浏览器打开该端口下的 `index.html`。
 
-当前版本：`1.3.0-rc.1`。这是用于跨平台和 Agent 接入验收的候选版本，不是已完成公开发布授权的稳定版。
+当前版本：`1.3.0`。官方产品入口：`https://yinji.modiqi.com/`。
 
 ## 目录
 
@@ -59,7 +60,7 @@ node tools/ai/yinji-cli.mjs smoke --pdf ./test-fixture.pdf
 node tools/ai/yinji-cli.mjs scan-check
 ```
 
-浏览器单元测试：打开 `http://127.0.0.1:8123/tests/index.html`。
+浏览器单元测试：打开静态服务后访问 `/tests/index.html`。
 
 批量模板盖章并输出证据记录：
 
@@ -140,4 +141,6 @@ node tools/ai/yinji-task.mjs --task ./task.json
 
 ## 许可证与第三方代码
 
-第三方库版本、哈希与许可证文本见 `THIRD_PARTY_NOTICES.md` 和 `licenses/`。印迹自身代码目前没有声明开源许可证；状态和发布门禁见 `LICENSE-STATUS.md`。候选包可以用于内部验收，公开或稳定发布仍须仓库所有者批准许可证。
+软件许可证为 MIT，正文见根目录 `LICENSE`。官方站点 `https://yinji.modiqi.com` 是产品入口；官方不公开免费分发源码包或安装包，也不把它当作公开下载站或免费礼包。分发政策见 `LICENSE-STATUS.md`。
+
+第三方库版本、哈希与许可证文本见 `THIRD_PARTY_NOTICES.md` 和 `licenses/`。

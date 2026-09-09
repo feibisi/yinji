@@ -1,13 +1,18 @@
 # Yinji licensing status
 
-Yinji itself does not currently carry an owner-approved software license. Copyright therefore remains with the respective copyright holders and no additional permission to copy, modify or redistribute Yinji is granted by this repository.
+Owner decision (2026-09-09): Yinji source is licensed under the MIT License. See the repository root `LICENSE`.
 
-The legacy `docs/README.md` says the project is MIT licensed but references a missing `LICENSE.txt`. The referenced upstream repository also does not currently publish that file. This statement is not treated as sufficient evidence for a release license.
+Official product policy:
 
-Third-party components retain their own licenses as recorded in `THIRD_PARTY_NOTICES.md` and `licenses/`.
+- The official hosted app is `https://yinji.modiqi.com`.
+- Modiqi does **not** operate a public free distribution channel (no public source download store, no free packaged releases as a giveaway).
+- MIT still applies to copies of the Software that you lawfully obtain. Hosting the official site is not a promise to publish source or binaries for unrestricted free download.
+- The official site is a local-in-browser visual stamping tool. Files are not uploaded to Modiqi servers for processing.
+
+Third-party components retain their own licenses in `THIRD_PARTY_NOTICES.md` and `licenses/`.
 
 Release policy:
 
-- internal release candidates may be built for compatibility and acceptance testing;
-- a stable or public release is blocked until the repository owner adds an approved `LICENSE` or distribution agreement;
-- changing this file is not a substitute for a copyright-owner decision.
+- `1.3.0` and later may carry the MIT `LICENSE` file.
+- Do not describe Yinji as “public free open source” or “MIT freeware download” in marketing copy.
+- Changing this file is not a substitute for a later owner decision to publish or withdraw a distribution channel.

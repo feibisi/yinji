@@ -1,6 +1,7 @@
 {
   "name": "Yinji",
-  "version": "1.3.0-rc.1",
-  "channel": "release-candidate",
+  "version": "1.3.0",
+  "channel": "release",
+  "canonicalUrl": "https://yinji.modiqi.com/",
   "agentProtocol": "yinji-agent-task/v1"
 }

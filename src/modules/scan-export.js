@@ -233,7 +233,7 @@ export async function buildScannedPdfBytes({
     const hadCanvasBeforeExport = Boolean(getState().fabricCanvases[i]);
     if (!hadCanvasBeforeExport) {
       try {
-        await initializeFabricCanvasForPage(pageNum);
+        await initializeFabricCanvasForPage(pageNum, false, { fullQuality: true });
       } catch (error) {
         console.warn(`第 ${pageNum} 页画布初始化失败:`, error);
       }

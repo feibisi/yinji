@@ -8,15 +8,36 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none'"
     />
-    <title>印迹（Yinji）- 本地文件印章工具</title>
+    <title>印迹 Yinji｜本地视觉盖章 - 莫蒂奇</title>
     <meta
       name="description"
-      content="印迹（Yinji）- 本地文件印章工具，支持 PDF、PNG、JPG 盖章，支持普通印章、骑缝章和批量处理，所有操作均在本地完成。"
+      content="印迹（Yinji）是莫蒂奇的本地视觉盖章工具。在浏览器里给 PDF 和图片盖普通章、骑缝章；不是数字证书签名，文件不上传处理。"
     />
+    <meta name="keywords" content="印迹, 视觉盖章, 骑缝章" />
+    <link rel="canonical" href="https://yinji.modiqi.com/" />
+    <link rel="alternate" hreflang="zh-CN" href="https://yinji.modiqi.com/" />
+    <link rel="alternate" hreflang="x-default" href="https://yinji.modiqi.com/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:site_name" content="印迹 Yinji" />
+    <meta property="og:title" content="印迹 Yinji｜本地视觉盖章 - 莫蒂奇" />
     <meta
-      name="keywords"
-      content="印迹,Yinji,PDF视觉盖章,图片盖章,骑缝章,本地工具,PDF处理,批量处理"
+      property="og:description"
+      content="本地视觉盖章，不是数字证书签名。扫描件为视觉模拟。文件在浏览器本地处理。"
     />
+    <meta property="og:url" content="https://yinji.modiqi.com/" />
+    <meta property="og:image" content="https://yinji.modiqi.com/public/og.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="印迹 Yinji 本地视觉盖章" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="印迹 Yinji｜本地视觉盖章 - 莫蒂奇" />
+    <meta
+      name="twitter:description"
+      content="本地视觉盖章，不是数字证书签名。扫描件为视觉模拟。文件在浏览器本地处理。"
+    />
+    <meta name="twitter:image" content="https://yinji.modiqi.com/public/og.png" />
     <link rel="stylesheet" href="src/style.css">
   </head>
   <body>
@@ -84,6 +105,7 @@
                 <span class="feature-chip">PNG / JPG</span>
                 <span class="feature-chip">本地处理</span>
               </div>
+              <p class="drop-zone-boundary">视觉盖章，不是数字证书签名。扫描件是视觉模拟。文件只在本机浏览器处理。</p>
               <input type="file" id="pdfInput" accept=".pdf,image/png,image/jpeg,.png,.jpg,.jpeg" hidden />
             </div>
           </div>
@@ -191,7 +213,7 @@
                 <button id="addSeal" class="btn btn-primary">盖到当前页</button>
                 <button id="addStraddle" class="btn btn-secondary">盖骑缝章</button>
               </div>
-              <input type="file" id="sealInput" accept="image/*" hidden />
+              <input type="file" id="sealInput" accept="image/png,image/jpeg,image/gif,image/webp,.png,.jpg,.jpeg,.gif,.webp" hidden />
             </div>
             <div class="tool-section" data-section-key="edit-appearance" data-section-default="closed">
               <h3>更多工具</h3>
@@ -492,6 +514,10 @@
 
         <div class="toolbar-footer">
           <p>所有操作都在你的电脑上完成</p>
+          <nav class="toolbar-footer-links" aria-label="站点信息">
+            <a href="/about/">关于</a>
+            <a href="/for-agents/">给 Agent</a>
+          </nav>
           <a href="https://www.modiqi.com" target="_blank" rel="noopener noreferrer">莫蒂奇数字技术（苏州）有限公司</a>
         </div>
       </aside>

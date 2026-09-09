@@ -102,7 +102,7 @@ const precisionCoordinateFields = document.getElementById('precision-coordinate-
 const workflowActions = document.querySelector('.workflow-actions');
 
 const EXPORT_MODE_STORAGE_KEY = 'yinji-export-mode';
-const SAMPLE_PDF_PATH = 'test-fixture.pdf';
+const SAMPLE_PDF_PATH = 'public/sample.pdf';
 
 let lastBatchQueueState = {
   count: 0,

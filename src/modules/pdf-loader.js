@@ -1,5 +1,10 @@
 import { getState, setState } from '../core/state.js';
 import { handleThumbnailInteraction } from './batch-operations.js';
+import {
+  abortThumbnailRenders,
+  getVirtualScrollerState,
+  refreshVirtualScroller,
+} from './thumbnail-virtual-scroller.js';
 
 /**
  * PDF 加载与管理模块
@@ -187,9 +192,19 @@ export async function handlePdfFile(
 
     setOriginalPdfBytes(originalPdfBytes);
 
-    const pdfDoc = await pdfjsLib.getDocument({
-      data: originalPdfBytes.slice(),
-    }).promise;
+    let pdfDoc;
+    try {
+      pdfDoc = await pdfjsLib.getDocument({
+        data: originalPdfBytes.slice(),
+      }).promise;
+    } catch (pdfError) {
+      const name = String(pdfError?.name || '');
+      const message = String(pdfError?.message || '');
+      if (name === 'PasswordException' || /password/i.test(message)) {
+        throw new Error('不支持加密 PDF。请提供已解密的副本。');
+      }
+      throw pdfError;
+    }
     assertActiveLoad(requestId);
 
     setPdfDoc(pdfDoc);
@@ -213,20 +228,19 @@ export async function handlePdfFile(
       pageFitScales: new Array(pdfDoc.numPages).fill(null),
     });
 
-    const {
-      getVirtualScrollerState,
-      refreshVirtualScroller,
-    } = await import('./thumbnail-virtual-scroller.js');
     assertActiveLoad(requestId);
 
     const vState = getVirtualScrollerState();
 
     if (vState) {
       createThumbnailList(pdfDoc.numPages);
-      refreshVirtualScroller();
-
       await window.showPage(1, false);
       onPagesRendered(1);
+      try {
+        refreshVirtualScroller();
+      } catch (thumbError) {
+        console.warn('刷新缩略图失败:', thumbError);
+      }
     } else {
       await renderAllPages(onPagesRendered);
     }
@@ -404,7 +418,10 @@ export async function renderThumbnailForPage(pageNum) {
 
   try {
     const page = await getPdfDoc().getPage(pageNum);
-    const viewport = page.getViewport({ scale: 0.3 });
+    const isNarrow =
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(max-width: 768px)').matches;
+    const viewport = page.getViewport({ scale: isNarrow ? 0.13 : 0.3 });
     thumbCanvas.height = viewport.height;
     thumbCanvas.width = viewport.width;
 
@@ -547,6 +564,8 @@ async function renderAllPages(onPagesRendered) {
  * 清理所有 PDF 相关资源
  */
 export function cleanupAllResources() {
+  abortThumbnailRenders();
+
   if (thumbnailRenderFrameId !== null) {
     window.cancelAnimationFrame(thumbnailRenderFrameId);
     thumbnailRenderFrameId = null;
@@ -579,6 +598,7 @@ export function cleanupAllResources() {
   const thumbnailContainer = document.getElementById('thumbnail-container');
   if (thumbnailContainer) {
     thumbnailContainer.scrollTop = 0;
+    thumbnailContainer.scrollLeft = 0;
     Array.from(thumbnailContainer.children).forEach((child) => {
       if (!child.classList.contains('empty-state')) {
         child.remove();

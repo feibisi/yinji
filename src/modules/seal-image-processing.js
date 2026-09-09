@@ -254,9 +254,34 @@ export function getRotatedSealDataUrl(sourceImage, angle, brightness = 100) {
   const context = canvas.getContext('2d');
   context.translate(outputWidth / 2, outputHeight / 2);
   context.rotate(radians);
-  context.filter = `brightness(${normalizeSealBrightness(brightness) / 100})`;
   context.drawImage(sourceImage, -width / 2, -height / 2);
+  applyToneMatrixToCanvas(context, outputWidth, outputHeight, brightness);
   return canvas.toDataURL('image/png');
+}
+
+function applyToneMatrixToCanvas(context, width, height, brightness) {
+  const matrix = makeSealToneMatrix(brightness);
+  const imageData = context.getImageData(0, 0, width, height);
+  const data = imageData.data;
+  const m0 = matrix[0];
+  const m4 = matrix[4];
+  const m6 = matrix[6];
+  const m9 = matrix[9];
+  const m12 = matrix[12];
+  const m14 = matrix[14];
+  const m18 = matrix[18];
+  const m19 = matrix[19];
+  for (let i = 0; i < data.length; i += 4) {
+    const red = data[i];
+    const green = data[i + 1];
+    const blue = data[i + 2];
+    const alpha = data[i + 3];
+    data[i] = Math.max(0, Math.min(255, red * m0 + m4));
+    data[i + 1] = Math.max(0, Math.min(255, green * m6 + m9));
+    data[i + 2] = Math.max(0, Math.min(255, blue * m12 + m14));
+    data[i + 3] = Math.max(0, Math.min(255, alpha * m18 + m19));
+  }
+  context.putImageData(imageData, 0, 0);
 }
 
 export { DEFAULT_BACKGROUND_THRESHOLD };

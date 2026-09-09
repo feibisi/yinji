@@ -1,5 +1,7 @@
 import { getState, setState } from '../core/state.js';
 
+const EDITOR_LOGICAL_SCALE = 2.0;
+
 /**
  * Canvas 画布管理模块
  * 负责 Fabric 画布的创建、初始化、缩放和渲染
@@ -48,6 +50,22 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
+function getPreviewRenderScale() {
+  if (typeof window === 'undefined') {
+    return EDITOR_LOGICAL_SCALE;
+  }
+
+  const dpr = Number(window.devicePixelRatio) || 1;
+  let scale = Math.min(2, Math.max(1, dpr));
+  if (
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(max-width: 768px)').matches
+  ) {
+    scale = Math.min(scale, 1.15);
+  }
+  return scale;
+}
+
 /**
  * 设置指定页面的 Fabric 画布
  * @param {number} pageIndex
@@ -82,36 +100,49 @@ export function getCurrentPageCanvas() {
 
 /**
  * 初始化指定页面的 Fabric 画布
+ * 坐标系仍按 2x PDF 点，屏幕预览可降采样；导出请传 fullQuality。
  * @param {number} pageNum
  * @param {boolean} forceRecalculate
+ * @param {{ fullQuality?: boolean }} [options]
  * @returns {Promise<fabric.Canvas>}
  */
-export async function initializeFabricCanvasForPage(pageNum, forceRecalculate = false) {
+export async function initializeFabricCanvasForPage(
+  pageNum,
+  forceRecalculate = false,
+  options = {}
+) {
   const pdfDoc = getState().pdfDoc;
   if (!pdfDoc) return null;
-
-  const pageFitScales = getPageFitScalesSafe();
-  if (forceRecalculate || !pageFitScales[pageNum - 1]) {
-    const page = await pdfDoc.getPage(pageNum);
-    const highResViewport = page.getViewport({ scale: 2.0 });
-    const mainContent = getMainContent();
-    const containerWidth = mainContent ? mainContent.clientWidth - 40 : 800;
-    setPageFitScaleAt(pageNum - 1, (containerWidth * 0.9) / highResViewport.width);
-  }
+  options = options || {};
 
   const fabricCanvases = getFabricCanvases();
-  if (fabricCanvases[pageNum - 1] && !forceRecalculate) {
-    return fabricCanvases[pageNum - 1];
+  const existingCanvas = fabricCanvases[pageNum - 1];
+  const pageFitScales = getPageFitScalesSafe();
+  const needsFitScale = forceRecalculate || !pageFitScales[pageNum - 1];
+
+  if (existingCanvas && !forceRecalculate && !needsFitScale) {
+    return existingCanvas;
   }
 
   const page = await pdfDoc.getPage(pageNum);
-  const highResViewport = page.getViewport({ scale: 2.0 });
-  const originalWidth = highResViewport.width;
-  const originalHeight = highResViewport.height;
+  const logicalViewport = page.getViewport({ scale: EDITOR_LOGICAL_SCALE });
+
+  if (needsFitScale) {
+    const mainContent = getMainContent();
+    const containerWidth = mainContent ? mainContent.clientWidth - 40 : 800;
+    setPageFitScaleAt(
+      pageNum - 1,
+      (containerWidth * 0.9) / logicalViewport.width
+    );
+  }
+
+  if (existingCanvas && !forceRecalculate) {
+    return existingCanvas;
+  }
 
   const canvasEl = document.getElementById(`canvas-${pageNum}`);
   const fabricCanvas =
-    fabricCanvases[pageNum - 1] ||
+    existingCanvas ||
     new fabric.Canvas(canvasEl, {
       // 允许右键选中/操作对象，并阻止浏览器原生右键菜单，
       // 使自定义右键菜单能作用在实际点到的印章上。
@@ -119,22 +150,44 @@ export async function initializeFabricCanvasForPage(pageNum, forceRecalculate = 
       stopContextMenu: true,
     });
 
-  if (!fabricCanvases[pageNum - 1]) {
-    fabricCanvas.originalWidth = originalWidth;
-    fabricCanvas.originalHeight = originalHeight;
+  if (!existingCanvas) {
+    fabricCanvas.originalWidth = logicalViewport.width;
+    fabricCanvas.originalHeight = logicalViewport.height;
+
+    const renderScale = options.fullQuality
+      ? EDITOR_LOGICAL_SCALE
+      : getPreviewRenderScale();
+    const renderViewport = page.getViewport({ scale: renderScale });
+    const bitmapWidth = Math.max(1, Math.round(renderViewport.width));
+    const bitmapHeight = Math.max(1, Math.round(renderViewport.height));
 
     const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = originalWidth;
-    tempCanvas.height = originalHeight;
-    await page
-      .render({
-        canvasContext: tempCanvas.getContext('2d'),
-        viewport: highResViewport,
-      })
-      .promise;
+    tempCanvas.width = bitmapWidth;
+    tempCanvas.height = bitmapHeight;
 
-    fabricCanvas.backgroundImage = new fabric.Image(tempCanvas);
-    fabricCanvas.requestRenderAll();
+    try {
+      await page
+        .render({
+          canvasContext: tempCanvas.getContext('2d'),
+          viewport: renderViewport,
+        })
+        .promise;
+
+      fabricCanvas.backgroundImage = new fabric.Image(tempCanvas, {
+        originX: 'left',
+        originY: 'top',
+        left: 0,
+        top: 0,
+        scaleX: logicalViewport.width / bitmapWidth,
+        scaleY: logicalViewport.height / bitmapHeight,
+      });
+      fabricCanvas.requestRenderAll();
+    } catch (error) {
+      if (options.fullQuality) {
+        throw error;
+      }
+      console.warn(`第 ${pageNum} 页预览渲染失败:`, error);
+    }
 
     setFabricCanvasAt(pageNum - 1, fabricCanvas);
   }
@@ -259,9 +312,18 @@ export async function showPage(pageNum, forceRecalculate = false) {
     document.querySelector('#thumbnail-container .virtual-thumbnail-items')
   );
 
-  if (!isVirtualThumbnailMode) {
-    const pdfLoader = await import('./pdf-loader.js');
-    await pdfLoader.renderThumbnailForPage(pageNum);
+  if (isVirtualThumbnailMode) {
+    import('./thumbnail-virtual-scroller.js')
+      .then((scroller) => scroller.syncVirtualScrollerToPage(pageNum))
+      .catch((error) => {
+        console.warn(`同步缩略图位置失败:`, error);
+      });
+  } else {
+    import('./pdf-loader.js')
+      .then((pdfLoader) => pdfLoader.renderThumbnailForPage(pageNum))
+      .catch((error) => {
+        console.warn(`渲染第 ${pageNum} 页缩略图时出错:`, error);
+      });
   }
 
   const wrapper = document.getElementById(`page-wrapper-${pageNum}`);

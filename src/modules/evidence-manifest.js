@@ -7,7 +7,7 @@ let cachedAppVersion = '';
 async function getAppVersion() {
   if (cachedAppVersion) return cachedAppVersion;
   try {
-    const response = await fetch(new URL('/version.json', window.location.href));
+    const response = await fetch(new URL('version.json', window.location.href));
     if (response.ok) cachedAppVersion = String((await response.json()).version || 'unknown');
   } catch {}
   return cachedAppVersion || 'unknown';

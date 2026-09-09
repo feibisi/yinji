@@ -58,3 +58,14 @@
 
 - 用户明确要求“下载文件该是什么格式就是什么格式”。此前为避免浏览器拦截多文件下载，人工界面把 PDF/PNG 与 evidence JSON 强制打包成 `.yinji.zip`；该取舍不符合直接下载的用户预期，现已撤销。
 - 普通导出、扫描件、选页、全页和逐页下载均直接输出 PDF；图片来源的图片导出直接输出 PNG。Agent CLI 仍在 `--output-dir` 同时写结果文件和 `.yinji.json`，不改变 AI 接口与校验流程。
+
+## 2026-09-09 - [Grok] MIT / 1.3.0 / 官方子域名
+
+- 仓库所有者已批准 MIT，根目录 `LICENSE` 与 `LICENSE-STATUS.md` 已就位；`version.json` 为 `1.3.0`，`canonicalUrl` 为 `https://yinji.modiqi.com/`。
+- 官方站点是产品入口，不公开免费分发源码包或安装包。
+- 人工导出为 PDF/PNG 原格式；`.yinji.json` 仅 Agent 写出。
+- 视觉盖章，不是数字证书签名；扫描件是视觉模拟。文件在浏览器本地处理，不出站。
+- OSS 稍后由 modiqi 在阿里云开通；CDN/DNS 由 DevOps 配合。禁止部署进 weixiaoduo-prod WordPress。
+- Windows 11 仍未实机认证，不得写成已认证。
+- 文档已按上述政策改 README、用户指南、兼容性门禁、CHANGELOG、DEPLOY；发布白名单加入 `LICENSE`。`src/` 业务代码本次未改。
+- 旋转导出 `getRotatedSealDataUrl` 的深浅烘焙与界面滑块同一套处理（代码由并行代理改）。

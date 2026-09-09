@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 ROOT_FILES = [
     'index.html', 'version.json', 'agent-manifest.json', 'README.md',
-    'THIRD_PARTY_NOTICES.md', 'LICENSE-STATUS.md', 'test-fixture.pdf', 'test-multi.pdf',
+    'THIRD_PARTY_NOTICES.md', 'LICENSE', 'LICENSE-STATUS.md', 'test-fixture.pdf', 'test-multi.pdf',
 ]
 DIRECTORIES = ['src', 'vendor', 'public', 'licenses', 'schemas', 'integrations/agents', 'tools/ai', 'tools/tests', 'tests']
 DOC_FILES = [

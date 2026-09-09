@@ -1287,6 +1287,16 @@
 }
 .toolbar-footer a:hover { text-decoration: underline; }
 
+.toolbar-footer-links {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.toolbar-footer-links a {
+  color: var(--neutral-500);
+}
+
 /* Utility */
 .hidden { display: none !important; }
 [hidden] { display: none !important; }

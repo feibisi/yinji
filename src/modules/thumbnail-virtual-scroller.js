@@ -1,16 +1,111 @@
 /**
  * 虚拟滚动缩略图模块
- * 只渲染可见区域内的缩略图，优化大文件性能
+ * PC 纵向：spacer 高度 + position:absolute
+ * 窄屏横向：文档流 flex，只保留当前可见附近页
  */
 
-import { getState, setState } from '../core/state.js';
+import { getState } from '../core/state.js';
 import { handleThumbnailInteraction } from './batch-operations.js';
 
-const SCROLL_BUFFER = 2; // 额外渲染前后各 2 页
-const THUMBNAIL_HEIGHT = 120; // 缩略图高度（含间距）
+const SCROLL_BUFFER = 2; // 纵向额外渲染前后各 2 页
+const HORIZONTAL_WINDOW = 6; // 横向额外渲染前后各 6 页
+const THUMBNAIL_HEIGHT = 120; // 纵向缩略图高度（含间距）
 const THUMBNAIL_WIDTH = 85; // 缩略图宽度
+const HORIZONTAL_ITEM_STRIDE = 88;
+const HORIZONTAL_MEDIA_QUERY = '(max-width: 768px)';
+const THUMBNAIL_SCALE_DESKTOP = 0.2;
+const THUMBNAIL_SCALE_MOBILE = 0.13;
 
 let virtualScrollerState = null;
+let viewportChangeBound = false;
+let mediaQueryList = null;
+const pendingRenders = new Map();
+
+/**
+ * 当前是否为窄屏横向缩略图
+ * @returns {boolean}
+ */
+function isHorizontalThumbnailMode() {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return false;
+  }
+  return window.matchMedia(HORIZONTAL_MEDIA_QUERY).matches;
+}
+
+function getThumbnailScale() {
+  return isHorizontalThumbnailMode() ? THUMBNAIL_SCALE_MOBILE : THUMBNAIL_SCALE_DESKTOP;
+}
+
+function isRenderCancelled(error) {
+  const name = error?.name || '';
+  const message = String(error?.message || '');
+  return (
+    name === 'RenderingCancelledException' ||
+    name === 'AbortException' ||
+    /cancel/i.test(message)
+  );
+}
+
+/**
+ * 取消未完成的 pdf.js 缩略图渲染，避免滚动排队
+ * @param {number} [pageNum]
+ */
+export function abortThumbnailRenders(pageNum) {
+  if (Number.isFinite(pageNum)) {
+    const task = pendingRenders.get(pageNum);
+    if (!task) return;
+    try {
+      task.cancel();
+    } catch (error) {
+      // 任务可能已结束
+    }
+    pendingRenders.delete(pageNum);
+    return;
+  }
+
+  pendingRenders.forEach((task) => {
+    try {
+      task.cancel();
+    } catch (error) {
+      // 任务可能已结束
+    }
+  });
+  pendingRenders.clear();
+}
+
+function onContainerScroll() {
+  if (!virtualScrollerState) return;
+  requestAnimationFrame(() => {
+    if (virtualScrollerState) {
+      updateVisibleRange(virtualScrollerState);
+    }
+  });
+}
+
+function onViewportChange() {
+  requestAnimationFrame(() => {
+    if (!virtualScrollerState) return;
+    const horizontal = isHorizontalThumbnailMode();
+    if (virtualScrollerState.horizontal !== horizontal) {
+      refreshVirtualScroller();
+      return;
+    }
+    updateVisibleRange(virtualScrollerState);
+  });
+}
+
+function bindViewportListeners() {
+  if (viewportChangeBound || typeof window === 'undefined') return;
+
+  window.addEventListener('resize', onViewportChange);
+  mediaQueryList = window.matchMedia(HORIZONTAL_MEDIA_QUERY);
+  if (mediaQueryList.addEventListener) {
+    mediaQueryList.addEventListener('change', onViewportChange);
+  } else if (mediaQueryList.addListener) {
+    mediaQueryList.addListener(onViewportChange);
+  }
+  viewportChangeBound = true;
+}
 
 /**
  * 初始化虚拟滚动
@@ -20,25 +115,28 @@ let virtualScrollerState = null;
 export function initVirtualScroller(container) {
   if (!container) return null;
 
+  if (virtualScrollerState?.container === container) {
+    return virtualScrollerState;
+  }
+
   virtualScrollerState = {
     container,
     visibleRange: { start: 1, end: 10 },
     renderedPages: new Set(),
     pageHeights: new Array(getState().totalPages || 0).fill(THUMBNAIL_HEIGHT),
+    horizontal: isHorizontalThumbnailMode(),
+    itemStride: HORIZONTAL_ITEM_STRIDE,
+    generation: 0,
   };
 
-  // 滚动监听
-  container.addEventListener('scroll', () => {
-    requestAnimationFrame(() => updateVisibleRange(virtualScrollerState));
-  }, { passive: true });
+  container.addEventListener('scroll', onContainerScroll, { passive: true });
+  bindViewportListeners();
 
-  // 窗口大小变化
-  window.addEventListener('resize', () => {
-    requestAnimationFrame(() => updateVisibleRange(virtualScrollerState));
-  });
-
-  // 初次渲染
-  setTimeout(() => updateVisibleRange(virtualScrollerState), 100);
+  setTimeout(() => {
+    if (virtualScrollerState) {
+      updateVisibleRange(virtualScrollerState);
+    }
+  }, 100);
 
   return virtualScrollerState;
 }
@@ -48,12 +146,19 @@ export function initVirtualScroller(container) {
  * @param {Object} state - 虚拟滚动状态
  */
 function updateVisibleRange(state) {
+  const totalPages = getState().totalPages;
+  if (!totalPages) return;
+
+  state.horizontal = isHorizontalThumbnailMode();
+
+  if (state.horizontal) {
+    updateHorizontalVisibleRange(state, totalPages);
+    return;
+  }
+
   const { container } = state;
   const scrollTop = container.scrollTop;
   const viewportHeight = container.clientHeight;
-  const totalPages = getState().totalPages;
-
-  if (!totalPages) return;
 
   // 计算可见的页面范围
   let accumulatedHeight = 0;
@@ -87,9 +192,122 @@ function updateVisibleRange(state) {
   endIndex = Math.min(totalPages, endIndex + SCROLL_BUFFER);
 
   state.visibleRange = { start: startIndex, end: endIndex };
-
-  // 更新渲染
   renderVisibleThumbnails(state);
+}
+
+function updateHorizontalVisibleRange(state, totalPages) {
+  const stride = state.itemStride || HORIZONTAL_ITEM_STRIDE;
+  const scrollLeft = state.container.scrollLeft || 0;
+  const viewportWidth = state.container.clientWidth || 0;
+  const firstVisible = Math.max(1, Math.floor(scrollLeft / stride) + 1);
+  const visibleCount = Math.max(1, Math.ceil((viewportWidth || stride) / stride));
+  const lastVisible = firstVisible + visibleCount - 1;
+
+  const startIndex = Math.max(1, firstVisible - HORIZONTAL_WINDOW);
+  const endIndex = Math.min(totalPages, lastVisible + HORIZONTAL_WINDOW);
+
+  state.visibleRange = { start: startIndex, end: endIndex };
+  renderVisibleThumbnails(state);
+}
+
+function applyItemsContainerLayout(itemsContainer, horizontal) {
+  if (horizontal) {
+    itemsContainer.style.position = 'static';
+    itemsContainer.style.height = '';
+    itemsContainer.style.width = 'auto';
+    itemsContainer.style.display = 'flex';
+    itemsContainer.style.flexDirection = 'row';
+    itemsContainer.style.alignItems = 'stretch';
+    itemsContainer.classList.add('is-horizontal');
+    return;
+  }
+
+  itemsContainer.style.position = 'relative';
+  itemsContainer.style.width = '100%';
+  itemsContainer.style.display = '';
+  itemsContainer.style.flexDirection = '';
+  itemsContainer.style.alignItems = '';
+  itemsContainer.classList.remove('is-horizontal');
+}
+
+function syncFlowSpacers(itemsContainer, state, totalPages) {
+  const start = itemsContainer.querySelector('.virtual-thumbnail-spacer-start');
+  const end = itemsContainer.querySelector('.virtual-thumbnail-spacer-end');
+
+  if (!state.horizontal) {
+    start?.remove();
+    end?.remove();
+    return;
+  }
+
+  const stride = state.itemStride || HORIZONTAL_ITEM_STRIDE;
+  const { start: rangeStart, end: rangeEnd } = state.visibleRange;
+  const startEl = start || document.createElement('div');
+  const endEl = end || document.createElement('div');
+
+  startEl.className = 'virtual-thumbnail-spacer-start';
+  endEl.className = 'virtual-thumbnail-spacer-end';
+  startEl.setAttribute('aria-hidden', 'true');
+  endEl.setAttribute('aria-hidden', 'true');
+  startEl.style.flex = `0 0 ${(rangeStart - 1) * stride}px`;
+  endEl.style.flex = `0 0 ${Math.max(0, totalPages - rangeEnd) * stride}px`;
+
+  if (!start) {
+    itemsContainer.prepend(startEl);
+  }
+  if (!end) {
+    itemsContainer.appendChild(endEl);
+  } else if (endEl.nextSibling) {
+    itemsContainer.appendChild(endEl);
+  }
+}
+
+function layoutThumbnailItem(thumb, pageNum, state, offsets) {
+  if (state.horizontal) {
+    thumb.style.position = '';
+    thumb.style.top = '';
+    thumb.style.left = '';
+    thumb.style.width = '';
+    thumb.style.flex = '0 0 auto';
+    return;
+  }
+
+  const offsetY = offsets[pageNum - 1] || 0;
+  thumb.style.position = 'absolute';
+  thumb.style.top = `${offsetY}px`;
+  thumb.style.left = '0';
+  thumb.style.width = '100%';
+  thumb.style.flex = '';
+}
+
+function insertThumbnailInOrder(itemsContainer, thumb, pageNum) {
+  const endSpacer = itemsContainer.querySelector('.virtual-thumbnail-spacer-end');
+  const items = itemsContainer.querySelectorAll('.thumbnail-item');
+  let next = null;
+
+  items.forEach((el) => {
+    if (!next && Number(el.dataset.pageNumber) > pageNum) {
+      next = el;
+    }
+  });
+
+  if (next) {
+    itemsContainer.insertBefore(thumb, next);
+  } else if (endSpacer) {
+    itemsContainer.insertBefore(thumb, endSpacer);
+  } else {
+    itemsContainer.appendChild(thumb);
+  }
+}
+
+function getVerticalOffsets(state, totalPages) {
+  const offsets = [];
+  let offsetSum = 0;
+  for (let i = 1; i <= totalPages; i++) {
+    offsets[i - 1] = offsetSum;
+    offsetSum += state.pageHeights[i - 1];
+  }
+  return { offsets, offsetSum };
 }
 
 /**
@@ -103,16 +321,12 @@ function renderVisibleThumbnails(state) {
 
   if (!totalPages) return;
 
-  // 找到或创建 items 容器
   let itemsContainer = container.querySelector('.virtual-thumbnail-items');
   if (!itemsContainer) {
     itemsContainer = document.createElement('div');
     itemsContainer.className = 'virtual-thumbnail-items';
-    itemsContainer.style.position = 'relative';
-    itemsContainer.style.width = '100%';
 
-    // 清空旧内容（保留空状态提示）
-    Array.from(container.children).forEach(child => {
+    Array.from(container.children).forEach((child) => {
       if (!child.classList.contains('empty-state')) {
         child.remove();
       }
@@ -121,65 +335,67 @@ function renderVisibleThumbnails(state) {
     container.appendChild(itemsContainer);
   }
 
+  applyItemsContainerLayout(itemsContainer, state.horizontal);
+
   const emptyState = container.querySelector('.empty-state');
   if (emptyState) {
     emptyState.style.display = 'none';
   }
 
-  // 计算每页的偏移量
-  const offsets = [];
-  let offsetSum = 0;
-  for (let i = 1; i <= totalPages; i++) {
-    offsets[i - 1] = offsetSum;
-    offsetSum += state.pageHeights[i - 1];
+  const { offsets, offsetSum } = getVerticalOffsets(state, totalPages);
+
+  if (state.horizontal) {
+    itemsContainer.style.height = '';
+  } else {
+    itemsContainer.style.height = `${offsetSum}px`;
   }
 
-  // 设置总高度
-  itemsContainer.style.height = `${offsetSum}px`;
+  syncFlowSpacers(itemsContainer, state, totalPages);
 
-  // 移除不可见的缩略图
-  renderedPages.forEach(pageNum => {
+  renderedPages.forEach((pageNum) => {
     if (pageNum < visibleRange.start || pageNum > visibleRange.end) {
+      abortThumbnailRenders(pageNum);
       const thumb = itemsContainer.querySelector(`[data-page-number="${pageNum}"]`);
       if (thumb) {
         thumb.remove();
-        renderedPages.delete(pageNum);
       }
+      renderedPages.delete(pageNum);
     }
   });
 
-  // 渲染可见的缩略图
   for (let pageNum = visibleRange.start; pageNum <= visibleRange.end; pageNum++) {
-    const offsetY = offsets[pageNum - 1];
-
     if (renderedPages.has(pageNum)) {
       const existingThumb = itemsContainer.querySelector(
         `[data-page-number="${pageNum}"]`
       );
       if (existingThumb) {
-        existingThumb.style.position = 'absolute';
-        existingThumb.style.top = `${offsetY}px`;
-        existingThumb.style.left = '0';
-        existingThumb.style.width = '100%';
+        layoutThumbnailItem(existingThumb, pageNum, state, offsets);
         syncThumbnailVisualState(existingThumb, pageNum);
+        if (state.horizontal) {
+          shouldRerender =
+            updateHorizontalStrideFromElement(existingThumb, state) || shouldRerender;
+        } else {
+          shouldRerender =
+            updatePageHeightFromElement(pageNum, existingThumb, state) || shouldRerender;
+        }
       }
       continue;
     }
 
     const thumb = createThumbnailElement(pageNum);
-
-    thumb.style.position = 'absolute';
-    thumb.style.top = `${offsetY}px`;
-    thumb.style.left = '0';
-    thumb.style.width = '100%';
-
-    itemsContainer.appendChild(thumb);
+    layoutThumbnailItem(thumb, pageNum, state, offsets);
+    insertThumbnailInOrder(itemsContainer, thumb, pageNum);
     renderedPages.add(pageNum);
     syncThumbnailVisualState(thumb, pageNum);
-    shouldRerender =
-      updatePageHeightFromElement(pageNum, thumb, state) || shouldRerender;
 
-    // 异步加载缩略图
+    if (state.horizontal) {
+      shouldRerender =
+        updateHorizontalStrideFromElement(thumb, state) || shouldRerender;
+    } else {
+      shouldRerender =
+        updatePageHeightFromElement(pageNum, thumb, state) || shouldRerender;
+    }
+
     loadThumbnailImage(pageNum, thumb, state);
   }
 
@@ -208,8 +424,9 @@ function createThumbnailElement(pageNum) {
 
   const canvas = document.createElement('canvas');
   canvas.className = 'thumbnail-canvas';
-  canvas.width = THUMBNAIL_WIDTH;
-  canvas.height = THUMBNAIL_HEIGHT;
+  const horizontal = isHorizontalThumbnailMode();
+  canvas.width = horizontal ? 72 : THUMBNAIL_WIDTH;
+  canvas.height = horizontal ? 96 : THUMBNAIL_HEIGHT;
 
   const label = document.createElement('p');
   label.textContent = `${pageNum}`;
@@ -217,7 +434,6 @@ function createThumbnailElement(pageNum) {
   div.appendChild(canvas);
   div.appendChild(label);
 
-  // 点击事件
   div.addEventListener('click', (e) => {
     if (handleThumbnailInteraction(pageNum, e)) {
       return;
@@ -239,6 +455,9 @@ function createThumbnailElement(pageNum) {
  * @param {Object} state - 虚拟滚动状态
  */
 async function loadThumbnailImage(pageNum, thumb, state) {
+  const generation = state.generation;
+  abortThumbnailRenders(pageNum);
+
   try {
     const pdfDoc = getState().pdfDoc;
     if (!pdfDoc) return;
@@ -247,26 +466,54 @@ async function loadThumbnailImage(pageNum, thumb, state) {
     if (!canvas) return;
 
     const page = await pdfDoc.getPage(pageNum);
-    const viewport = page.getViewport({ scale: 0.2 });
+    if (
+      !virtualScrollerState ||
+      virtualScrollerState.generation !== generation ||
+      !thumb.isConnected
+    ) {
+      return;
+    }
 
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
+    const viewport = page.getViewport({ scale: getThumbnailScale() });
+    canvas.width = Math.max(1, Math.round(viewport.width));
+    canvas.height = Math.max(1, Math.round(viewport.height));
 
-    await page.render({
+    const task = page.render({
       canvasContext: canvas.getContext('2d'),
-      viewport: viewport,
-    }).promise;
+      viewport,
+    });
+    pendingRenders.set(pageNum, task);
 
-    if (updatePageHeightFromElement(pageNum, thumb, state)) {
+    try {
+      await task.promise;
+    } finally {
+      if (pendingRenders.get(pageNum) === task) {
+        pendingRenders.delete(pageNum);
+      }
+    }
+
+    if (
+      !virtualScrollerState ||
+      virtualScrollerState.generation !== generation ||
+      !thumb.isConnected
+    ) {
+      return;
+    }
+
+    if (state.horizontal) {
+      if (updateHorizontalStrideFromElement(thumb, state)) {
+        renderVisibleThumbnails(state);
+      }
+    } else if (updatePageHeightFromElement(pageNum, thumb, state)) {
       renderVisibleThumbnails(state);
     }
 
-    // 同步选中和当前页状态
     syncThumbnailVisualState(thumb, pageNum);
-
     page.cleanup();
-
   } catch (error) {
+    if (isRenderCancelled(error)) {
+      return;
+    }
     console.error(`加载缩略图 ${pageNum} 失败:`, error);
   }
 }
@@ -290,6 +537,26 @@ function measureThumbnailHeight(thumb) {
   return Math.ceil(rect.height + marginBottom);
 }
 
+function updateHorizontalStrideFromElement(thumb, state) {
+  const itemsContainer =
+    state.container.querySelector('.virtual-thumbnail-items') || state.container;
+  const styles = window.getComputedStyle(itemsContainer);
+  const gap = parseFloat(styles.columnGap || styles.gap) || 0;
+  const width = thumb.getBoundingClientRect().width;
+  const stride = Math.ceil(width + gap);
+
+  if (!stride) {
+    return false;
+  }
+
+  if (Math.abs((state.itemStride || HORIZONTAL_ITEM_STRIDE) - stride) <= 1) {
+    return false;
+  }
+
+  state.itemStride = stride;
+  return true;
+}
+
 /**
  * 刷新虚拟滚动（当 PDF 加载完成后调用）
  */
@@ -299,12 +566,17 @@ export function refreshVirtualScroller() {
   const totalPages = getState().totalPages;
   if (!totalPages) return;
 
-  // 重置页面高度数组
+  abortThumbnailRenders();
+
+  virtualScrollerState.generation += 1;
+  virtualScrollerState.horizontal = isHorizontalThumbnailMode();
   virtualScrollerState.pageHeights = new Array(totalPages).fill(THUMBNAIL_HEIGHT);
+  virtualScrollerState.itemStride = HORIZONTAL_ITEM_STRIDE;
   virtualScrollerState.renderedPages.clear();
 
-  // 强制重新渲染
-  const itemsContainer = virtualScrollerState.container.querySelector('.virtual-thumbnail-items');
+  const itemsContainer = virtualScrollerState.container.querySelector(
+    '.virtual-thumbnail-items'
+  );
   if (itemsContainer) {
     itemsContainer.remove();
   }
@@ -313,11 +585,34 @@ export function refreshVirtualScroller() {
 }
 
 /**
+ * 当前页变化时，让横向条滚到该页附近
+ * @param {number} pageNum
+ */
+export function syncVirtualScrollerToPage(pageNum) {
+  if (!virtualScrollerState || !pageNum) return;
+
+  const state = virtualScrollerState;
+  if (isHorizontalThumbnailMode()) {
+    const stride = state.itemStride || HORIZONTAL_ITEM_STRIDE;
+    const container = state.container;
+    const target =
+      (pageNum - 1) * stride - (container.clientWidth - stride) / 2;
+    container.scrollLeft = Math.max(0, target);
+  }
+
+  updateVisibleRange(state);
+}
+
+/**
  * 清理虚拟滚动资源
  */
 export function cleanupVirtualScroller() {
+  abortThumbnailRenders();
+
   if (virtualScrollerState && virtualScrollerState.container) {
-    const itemsContainer = virtualScrollerState.container.querySelector('.virtual-thumbnail-items');
+    const itemsContainer = virtualScrollerState.container.querySelector(
+      '.virtual-thumbnail-items'
+    );
     if (itemsContainer) {
       itemsContainer.remove();
     }

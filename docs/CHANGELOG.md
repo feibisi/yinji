@@ -5,6 +5,23 @@ All notable changes to PDF Stamper will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-09-09
+
+### Added
+- 根目录 MIT `LICENSE`；官方产品入口 `https://yinji.modiqi.com/`
+- `version.json` 版本 `1.3.0`，`canonicalUrl` 指向官方站点
+- `LICENSE-STATUS.md`：MIT 适用于合法取得的副本；官方不公开免费分发源码包或安装包
+
+### Changed
+- 人工导出保持 PDF/PNG 原格式；`.yinji.json` 仅由 Agent 写出
+- 稳定版不再因缺少 `LICENSE` 阻塞发布构建
+- 旋转导出 `getRotatedSealDataUrl` 的深浅烘焙与界面滑块同一套处理
+
+### Notes
+- 视觉盖章，不是数字证书签名；扫描件是视觉模拟
+- Windows 11 仍未做实机认证，不得对外写成已认证
+- OSS 稍后由 modiqi 在阿里云开通；CDN/DNS 由 DevOps 配合；禁止部署进 weixiaoduo-prod WordPress
+
 ## [Unreleased] - 2026-08-09
 
 ### Added
