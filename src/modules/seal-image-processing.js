@@ -154,61 +154,6 @@ export function removeSealBackground(
   };
 }
 
-/**
- * 只移除与图片边缘连通的近白背景，保留封闭图形内部的白色区域。
- * @param {ImageData} imageData
- * @param {number} threshold
- * @returns {{removedPixels:number,totalPixels:number}}
- */
-export function removeEdgeConnectedBackground(
-  imageData,
-  threshold = DEFAULT_BACKGROUND_THRESHOLD
-) {
-  const { data, width, height } = imageData;
-  const safeThreshold = normalizeBackgroundThreshold(threshold);
-  const visited = new Uint8Array(width * height);
-  const queue = new Uint32Array(width * height);
-  let head = 0;
-  let tail = 0;
-
-  const enqueue = (x, y) => {
-    if (x < 0 || y < 0 || x >= width || y >= height) return;
-    const index = y * width + x;
-    if (visited[index]) return;
-    visited[index] = 1;
-    if (!isBackgroundPixel(data, index * 4, safeThreshold)) return;
-    queue[tail++] = index;
-  };
-
-  for (let x = 0; x < width; x += 1) {
-    enqueue(x, 0);
-    enqueue(x, height - 1);
-  }
-  for (let y = 1; y < height - 1; y += 1) {
-    enqueue(0, y);
-    enqueue(width - 1, y);
-  }
-
-  let removedPixels = 0;
-  while (head < tail) {
-    const index = queue[head++];
-    const offset = index * 4;
-    if (data[offset + 3] !== 0) {
-      data[offset + 3] = 0;
-      removedPixels += 1;
-    }
-
-    const x = index % width;
-    const y = Math.floor(index / width);
-    enqueue(x - 1, y);
-    enqueue(x + 1, y);
-    enqueue(x, y - 1);
-    enqueue(x, y + 1);
-  }
-
-  return { removedPixels, totalPixels: width * height };
-}
-
 export function loadSealImage(source) {
   if (source instanceof HTMLImageElement && source.complete && source.naturalWidth > 0) {
     return Promise.resolve(source);
@@ -283,5 +228,3 @@ function applyToneMatrixToCanvas(context, width, height, brightness) {
   }
   context.putImageData(imageData, 0, 0);
 }
-
-export { DEFAULT_BACKGROUND_THRESHOLD };

@@ -1,18 +1,5 @@
 export const STAMP_TEMPLATE_SCHEMA = 'yinji-stamp-template/v1';
 
-export const DEFAULT_STAMP_TEMPLATE = Object.freeze({
-  schema: STAMP_TEMPLATE_SCHEMA,
-  pages: 'all',
-  anchor: 'center',
-  offsetX: 0,
-  offsetY: 0,
-  size: null,
-  opacity: null,
-  rotation: null,
-  brightness: null,
-  removeBackground: null,
-});
-
 const ANCHORS = new Set([
   'center',
   'top-left',

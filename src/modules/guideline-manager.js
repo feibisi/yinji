@@ -40,21 +40,6 @@ export function initOn(canvas) {
 }
 
 /**
- * 移除对齐辅助线监听
- * @param {fabric.Canvas} canvas
- */
-export function destroyOn(canvas) {
-  if (!canvas) return;
-  canvas.off('object:moving', _onObjectMoving);
-  canvas.off('object:scaling', _onObjectScaling);
-  canvas.off('selection:created', _updateGuideObjects);
-  canvas.off('selection:updated', _updateGuideObjects);
-  canvas.off('selection:cleared', _updateGuideObjects);
-  canvas.off('mouse:up', _handleMouseUp);
-  _boundCanvases.delete(canvas);
-}
-
-/**
  * 启用/禁用对齐辅助线
  */
 export function setEnabled(val) {

@@ -285,18 +285,6 @@
   color: var(--text-color-secondary);
 }
 
-.workflow-card-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.25rem 0.5625rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.94);
-  border: 1px solid rgba(37, 99, 235, 0.12);
-  color: var(--primary-700);
-  font-size: 0.625rem;
-  font-weight: 600;
-  white-space: nowrap;
-}
 
 .workflow-step-row {
   display: flex;

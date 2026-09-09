@@ -19,7 +19,7 @@
 ## 改动约束
 - `src/style.css` 只保留导入顺序。具体样式写到 `src/styles/*.css`。
 - `src/main.js` 保留页面入口和总装配逻辑。独立功能尽量写到 `src/features/*` 或 `src/ui/*`。
-- `auto.html`、`multi.html` 是旧调试页。用户没点名时不要顺手改。
+- 旧调试页 `auto.html` / `multi.html` 已不在仓库。
 
 ## 验证
 - 改了 JS 后，先跑 `node --check` 检查改动文件。

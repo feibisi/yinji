@@ -604,23 +604,6 @@ export function syncVirtualScrollerToPage(pageNum) {
 }
 
 /**
- * 清理虚拟滚动资源
- */
-export function cleanupVirtualScroller() {
-  abortThumbnailRenders();
-
-  if (virtualScrollerState && virtualScrollerState.container) {
-    const itemsContainer = virtualScrollerState.container.querySelector(
-      '.virtual-thumbnail-items'
-    );
-    if (itemsContainer) {
-      itemsContainer.remove();
-    }
-    virtualScrollerState = null;
-  }
-}
-
-/**
  * 获取当前虚拟滚动状态
  * @returns {Object|null}
  */

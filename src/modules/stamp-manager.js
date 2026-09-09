@@ -22,14 +22,6 @@ export function getSealImageElement() {
   return getState().sealImageElement;
 }
 
-/**
- * 设置印章图片元素
- * @param {HTMLImageElement|null} sealImageElement
- */
-export function setSealImageElement(sealImageElement) {
-  setState({ sealImageElement });
-}
-
 function updateSealPreview(src) {
   const sealPreviewImg = document.getElementById('seal-preview');
   const sealPlaceholder = document.getElementById('seal-placeholder');

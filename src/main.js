@@ -561,8 +561,6 @@ function updateToolbarStatus() {
   const editStatusFile = document.getElementById('edit-status-file');
   const editStatusPage = document.getElementById('edit-status-page');
   const editStatusSummary = document.getElementById('edit-status-summary');
-  const placePageChip = document.getElementById('place-page-chip');
-  const placeSealChip = document.getElementById('place-seal-chip');
   const editSelectionChip = document.getElementById('edit-selection-chip');
   const editGuidelineChip = document.getElementById('edit-guideline-chip');
   const sealLibraryCountChip = document.getElementById('seal-library-count-chip');
@@ -603,12 +601,6 @@ function updateToolbarStatus() {
     } else {
       editStatusSummary.textContent = '印章准备好了，点「盖到当前页」放上去。';
     }
-  }
-  if (placePageChip) {
-    placePageChip.textContent = hasPdf ? `当前页 ${currentActivePage} / ${totalPages}` : '当前页 - / -';
-  }
-  if (placeSealChip) {
-    placeSealChip.textContent = hasSeal ? '印章或签名已就绪' : '选个印章或签名';
   }
   if (sealUploadBtn) {
     sealUploadBtn.textContent = hasSeal ? '更换印章图片' : '选择印章图片';
